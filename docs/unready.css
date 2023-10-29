@@ -1,0 +1,29 @@
+.mobile-app-unsupported {
+    #main-content {
+        gap: 40px
+    }
+
+    #baron-nashor {
+        width: 250px;
+    }
+
+    #header-text {
+        font-size: 12px;
+        color: var(--text-color-faded);
+    }
+}
+
+.desktop-app-unsupported {
+    #main-content {
+        gap: 40px
+    }
+
+    #ornn-wip {
+        width: 250px;
+    }
+
+    #header-text {
+        font-size: 12px;
+        color: var(--text-color-faded);
+    }
+}

@@ -1,0 +1,78 @@
+* {
+    font-family: Calibri, 'Trebuchet MS', sans-serif;
+    font-size: 16px;
+    scroll-behavior: smooth;
+    --roundness: 15px;
+    --roundness-small: 5px;
+    --background-color: #292929;
+    --text-color: #fafafa;
+    --text-color-faded: #b7b7b7;
+}
+
+html, body {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    background-color: var(--background-color);
+    color: var(--text-color);
+}
+  
+body {
+    justify-content: center;
+    align-items: center;
+    margin: 0;
+}
+
+#main {
+    position: relative; /* for draggable menu */
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+#main-wrapper {
+    flex-wrap: nowrap;
+    height: auto;
+}
+
+.v {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: wrap;
+    height: 100%;
+}
+  
+.h {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 100%;
+}
+  
+.hv-c {
+    justify-content: center;
+}
+  
+.hv-l {
+    justify-content: flex-start;
+}
+  
+.hv-r {
+    justify-content: flex-end;
+}
+  
+.vh-c {
+    align-items: center;
+}
+  
+.vh-t {
+    align-items: flex-start;
+}
+  
+.vh-b {
+    align-items: flex-end;
+}
+  
+.hide {
+    display: none !important;
+}
