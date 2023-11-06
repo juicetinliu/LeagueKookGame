@@ -46,20 +46,6 @@ export class Fire {
                 // https://firebase.google.com/docs/reference/js/auth.user
                 console.log(user.uid);
                 this.fireUser = user;
-
-                // this.createRoom({
-                //     adminDetails: {
-                //         isBaron: false,
-                //     },
-                //     id: "1z2x3c",
-                //     passcode: "qwerty",
-                //     gameSettings: {
-                //         stuff: "hehe"
-                //     },
-                //     blockList: {},
-                //     lobbyList: {}
-                // })
-                // ...
                 
             } else {
                 // User is signed out

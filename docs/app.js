@@ -27,7 +27,8 @@ export class App {
         }
     }
 
-    start() {
+    async start() {
+        await this.fire.createAnonymousUser();
         this.goToPage(this.pages.index, {}, {}, null, false);
         this.savePageStateToHistory(true);
     }
