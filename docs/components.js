@@ -152,15 +152,16 @@ export class Component extends Element{ //reusable, functional, and created elem
     constructor(type, label, page, app) {
         super(type, label);
         this.app = app;
-        this.config = app.passManager.config;
         this.page = page;
-        this.created = false;
+        this.setupCompleted = false;
+        this.createCompleted = false;
     }
 
     create() {
-        this.created = true;
+        this.createCompleted = true;
     }
 
     setup() {
-    } //any event listeners
+        this.setupCompleted = true;
+    } //prevent multiple event listeners attaching
 }

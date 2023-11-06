@@ -4,7 +4,19 @@
     scroll-behavior: smooth;
     --roundness: 15px;
     --roundness-small: 5px;
+
+    --font-small: 12px;
+
     --background-color: #292929;
+    /* --primary-color: ; */
+    /* --primary-background-color: #0e1427; */
+    /* --secondary-color:  */
+    /* --secondary-background-color: ;  */
+    /* --accent-color: */
+    /* --fade-color:; */
+    /* --fade-background-color: ; */
+    --panel-primary-border: #4f5f77af;
+    --panel-primary-background: #1b2535;
     --text-color: #fafafa;
     --text-color-faded: #b7b7b7;
 }

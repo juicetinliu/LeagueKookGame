@@ -1,60 +1,95 @@
 import { documentCreateElement, Element } from "./components.js";
-
+import { Fire } from "./fire.js";
+import { IndexPage, JoinRoomPage } from "./pages/index.js";
+import { LobbyPage } from "./pages/lobby.js";
 
 export class App {
     constructor() {
         this.main = new Element("id", "main");
+        this.mainWrapper = new Element("id", "main-wrapper");
+        this.userType = null;
 
-        this.pages = {};
+        this.fire = new Fire();
+
+        this.pages = {
+            index: new IndexPage(this),
+            joinRoom: new JoinRoomPage(this),
+            lobby: new LobbyPage(this),
+        };
+
+        this.currentPage = null;
 
         this.APP_CONSTANTS = {
         }
 
-    }
-
-    start() {
-        this.setup();
-        this.main.show();
-    }
-
-    setup(){
-        console.log("not implemented");
-    }
-
-    exit(){
-    }
-}
-
-class InitialApp extends App {
-    constructor() {
-        super();
-        this.CONSTANTS = {
+        window.onpopstate = (event) => {
+            this._loadPageFromHistory(event);
         }
     }
 
     start() {
-        super.start();
+        this.goToPage(this.pages.index, {}, {}, null, false);
+        this.savePageStateToHistory(true);
     }
 
-    setup(){
+    goToPage(page, setupArgs = {}, showArgs = {}, stateToLoadFrom = null, saveToHistory = true) {
+        this.main.hide();
 
+        Object.values(this.pages).forEach(page => {
+            if(page.createCompleted) page.hide();
+        });
+        this.currentPage = page;
+        if(saveToHistory) this.savePageStateToHistory();
+        if(stateToLoadFrom) this.currentPage.loadFromState(stateToLoadFrom);
+        this._renderCurrentPage(setupArgs, showArgs);
+    }
+
+
+    _renderCurrentPage(setupPageArgs = {}, showPageArgs = {}) {
+        this._setupCurrentPage(setupPageArgs);
+        this._showCurrentPage(showPageArgs);
+    }
+
+    _setupCurrentPage(pageArgs = {}) {
+        if(!this.currentPage.createCompleted) {
+            let currentPage = this.currentPage.create();
+            this.mainWrapper.getElement().appendChild(currentPage);
+        }
+        this.currentPage.setup(pageArgs);
+    }
+
+    _showCurrentPage(pageArgs = {}) {
+        this.currentPage.show(pageArgs);
+        this.main.show();
+    }
+
+    savePageStateToHistory(replace = false) {
+        let currentPage = this.currentPage;
+        let currentPageId = Object.keys(this.pages).find(key => this.pages[key] === currentPage);
+        let pageState = currentPage.unloadToState();
+        let stateObject = {
+            currentPageId: currentPageId,
+            pageState: pageState
+        };
+        if (replace) {
+            history.replaceState(stateObject, "");
+        } else {
+            history.pushState(stateObject, "");
+        }
+    }
+
+    _loadPageFromHistory(event) {
+        let state = event.state;
+        if(state) {
+            let currentPageId = state.currentPageId;
+            let pageState = (state.pageState && Object.keys(state.pageState).length) ? state.pageState : null ;
+            this.goToPage(this.pages[currentPageId], {}, {}, pageState, false);
+        }
     }
 
     exit(){
     }
 }
-
-class AdminApp extends App {
-    // Acts as the server
-    // Creates and "runs" Game objects
-    //
-
-}
-
-class ParticipantApp extends App {
-
-}
-
 
 export class MobileAppNA {
     constructor() {        
@@ -75,7 +110,7 @@ export class MobileAppNA {
         baronImg.src = "assets/baron/baron.png"
         messageBlock.appendChild(baronImg);
 
-        let message = documentCreateElement("div", "header-text", "unsupported-message");
+        let message = documentCreateElement("div", "image-text", "unsupported-message");
         message.innerHTML = "Like league, this game doesn't run on mobile 😉"
         messageBlock.appendChild(message);
 
@@ -107,7 +142,7 @@ export class DesktopAppWIP {
         baronImg.src = "assets/ornn/ornn.gif"
         messageBlock.appendChild(baronImg);
 
-        let message = documentCreateElement("div", "header-text", "unsupported-message");
+        let message = documentCreateElement("div", "image-text", "unsupported-message");
         message.innerHTML = "Work in progress 🛠️"
         messageBlock.appendChild(message);
 

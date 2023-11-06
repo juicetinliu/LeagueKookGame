@@ -1,0 +1,61 @@
+#lobby-page { 
+    --profile-width: 46px;
+    --profile-height: 80px;
+}
+
+#lobby-room-info-panel {
+}
+
+#lobby-participants-panel {
+    height: 200px;
+    width: 400px;
+    gap: 15px;
+    overflow: auto;
+}
+
+#lobby-room-controls-panel {
+}
+
+#lobby-page-room-controls-content-row {
+    gap: 15px;
+}
+
+#lobby-page-content-vert-wrapper {
+    gap: 15px;
+}
+
+.participant-profile-wrapper {
+    width: var(--profile-width);
+    height: var(--profile-height);
+    border-radius: var(--roundness);
+    padding: 10px;
+    border: 1px solid var(--panel-primary-border)
+}
+
+.participant-profile-wrapper.this-user {
+    background-color: #afa15b76;
+}
+
+.participant-profile-vert-wrapper {
+    gap: 10px;
+}
+
+.participant-profile-avatar {
+    width: var(--profile-width);
+    height: var(--profile-width);
+    border-radius: 50%;
+    border: 1px solid #199da4;
+}
+
+.participant-profile-name {
+    width: var(--profile-width);
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.panel {
+    border-radius: var(--roundness);
+    border: 1px solid var(--panel-primary-border);
+    background: var(--panel-primary-background);
+    padding: 20px;
+}

@@ -1,29 +1,30 @@
 .mobile-app-unsupported {
     #main-content {
-        gap: 40px
+        gap: 20px;
     }
 
     #baron-nashor {
         width: 250px;
     }
 
-    #header-text {
-        font-size: 12px;
+    #image-text {
+        font-size: var(--font-small);
         color: var(--text-color-faded);
     }
 }
 
 .desktop-app-unsupported {
     #main-content {
-        gap: 40px
+        gap: 20px
     }
 
     #ornn-wip {
         width: 250px;
+        border-radius: var(--roundness);
     }
 
-    #header-text {
-        font-size: 12px;
+    #image-text {
+        font-size: var(--font-small);
         color: var(--text-color-faded);
     }
 }
