@@ -1,6 +1,7 @@
-import { documentCreateElement, Element } from "../components.js";
-import { GAME_ROLES, GameUtils } from "../game.js";
+import { Component, documentCreateElement, Element } from "../components.js";
+import { GAME_ROLES, GameUtils, PROFILE_IMAGES_CODES, ProfileUtils } from "../game.js";
 import { Page } from "../page.js";
+import { getRandomElementFromArray } from "../util.js";
 
 export class LobbyPage extends Page {
     constructor(app) {
@@ -32,13 +33,15 @@ export class LobbyPage extends Page {
         this.roomInfoRoomCode = new Element("id", ROOM_INFO_ROOM_CODE_ID);
         this.roomInfoRoomPasscode = new Element("id", ROOM_INFO_ROOM_PASSCODE_ID);
 
-
         this.roomControlsStartButton = new Element("id", ROOM_START_BUTTON_ID);
         this.roomControlsCloseButton = new Element("id", ROOM_CLOSE_BUTTON_ID);
         this.roomControlsReadyButton = new Element("id", ROOM_READY_BUTTON_ID);
         this.roomControlsLeaveButton = new Element("id", ROOM_LEAVE_BUTTON_ID);
         this.roomControlsLockToggleButton = new Element("id", ROOM_LOCK_TOGGLE_BUTTON_ID);
         this.roomControlsSettingsButton = new Element("id", ROOM_SETTINGS_BUTTON_ID);
+
+        this.lobbyUserList = [];
+        this.participantProfileCards = [];
 
         this.waitListListener = null;
         this.lobbyListListener = null;
@@ -52,6 +55,8 @@ export class LobbyPage extends Page {
         this.isAdmin = false;
         this.isRoomLocked = false;
         this.isReady = false;
+        this.lobbyUserList = [];
+        this.participantProfileCards = [];
     }
 
     setup(setupArgs) {
@@ -172,39 +177,24 @@ export class LobbyPage extends Page {
     }
 
     createParticipantsPanelContent(participants) {
-        let participantsPanelContent = this.generateParticipantProfileContent({
-            name: GAME_ROLES.ADMIN,
-            uid: GAME_ROLES.ADMIN,
-            isReady: true,
-        });
-        if(!participants) return participantsPanelContent;
-        Object.entries(participants).forEach(val => {
-            participantsPanelContent += this.generateParticipantProfileContent({
-                name: val[0],
-                uid: val[0],
-                isReady: val[1].isReady,
-            })
-        });
-        return participantsPanelContent;
-    }
+        this.lobbyUserList = [];
+        this.participantProfileCards = [];
 
-    generateParticipantProfileContent(userParams) {
-        let isUserAdmin = userParams.uid === GAME_ROLES.ADMIN
-        let isCurrentUser = userParams.uid === this.app.fire.fireUser.uid || (this.isAdmin && isUserAdmin);
-        return `
-            <div id="participant-profile-${userParams.uid}" class="participant-profile-wrapper ${isCurrentUser ? "this-user" : ""}">
-                <div class="participant-profile-vert-wrapper v vh-c hv-c">
-                    <div class="participant-profile-avatar">
-                        ${userParams.isReady 
-                            ? (isUserAdmin ? "ADMIN" : "ready") 
-                            : ""}
-                    </div>
-                    <div class="participant-profile-name">
-                        ${userParams.name}
-                    </div>
-                </div>
-            </div>
-        `;
+        if(participants) {
+            Object.entries(participants).forEach(participantInfo => {
+                let uid = participantInfo[0];
+                let participantData = participantInfo[1];
+                this.lobbyUserList.push(new User(uid, participantData.isReady, participantData.role, participantData.roleImgCode));
+            });
+        }
+        this.lobbyUserList.forEach(user => {
+            this.participantProfileCards.push(ParticipantProfileCard.createFromProfile(user, this));
+        });
+        let participantsPanelContent = "";
+        this.participantProfileCards.forEach(card => {
+            participantsPanelContent += card.create();
+        })
+        return participantsPanelContent;
     }
 
     create() {
@@ -279,5 +269,76 @@ export class LobbyPage extends Page {
                 `}
             </div>
         `;
+    }
+}
+
+class User {
+    constructor(uid, isReady, role, roleImgCode) {
+        this.uid = uid;
+        this.isReady = isReady;
+        this.role = role;
+        this.name = uid;
+        this.profileImageSrc = ProfileUtils.generateProfileImageFromCode(roleImgCode);
+    }
+}
+
+class ParticipantProfileCard extends Component {
+    constructor(uid, isReady, role, profileImgSrc, page, app) {
+        super("id", `participant-profile-card-${uid}`, page, app);
+        this.uid = uid;
+        this.isAdmin = uid === GAME_ROLES.ADMIN;
+        this.isReady = isReady;
+        this.role = role;
+        this.roleString = GameUtils.convertRoleToDisplayString(this.role);
+        this.profileImgSrc = profileImgSrc;
+        this.isCurrentUser = uid === this.app.fire.fireUser.uid || (this.isAdmin && page.isAdmin);
+
+        this.PROFILE_AVATAR_CLASS = "participant-profile-avatar";
+
+        this.profileAvatar = new Element("id", this.PROFILE_AVATAR_CLASS);
+    }
+
+    setup() {
+        this.profileAvatar.addEventListener(["click"], () => {
+
+        })
+        super.setup();
+    }
+
+    show() {
+        super.show();
+    }
+
+    static createFromProfile(user, page) {
+        return new ParticipantProfileCard(user.uid, user.isReady, user.role, user.profileImageSrc, page, page.app);
+    }
+
+    create() {
+        let out = `
+            <div id="${this.label}" class="participant-profile-card ${this.isCurrentUser ? "this-user" : ""}">
+                ${(this.isReady || this.isAdmin) ? `
+                    <div class="participant-profile-ready-blocker">
+                        Ready
+                    </div>
+                ` : ""}
+                <div class="participant-profile-vert-wrapper v vh-c hv-c">
+                    <div class="${this.profileAvatar.label}">
+                        <div class="participant-profile-role-hover">
+                            ${this.roleString}
+                        </div>
+                        <img class="participant-profile-avatar-image" src="${this.profileImgSrc}">
+                        </img>
+                    </div>
+                    <div class="participant-profile-name">
+                        ${this.uid}
+                    </div>
+                </div>
+            </div>
+        `;
+        super.create();
+        return out;
+    }
+
+    setup() {
     }
 }

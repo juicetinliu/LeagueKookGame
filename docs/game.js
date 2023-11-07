@@ -50,6 +50,10 @@ export const GameUtils = {
         });
         ret &= (numBaron === RoomConstants.numBaronRole && numMCQ >= RoomConstants.minMCQRoleCount);
         return ret;
+    },
+    convertRoleToDisplayString: (role) => {
+        const stringMapping = {admin: "Admin", baron: "Baron", mcq: "MCQ"};
+        return stringMapping[role];
     }
 }
 
@@ -57,4 +61,16 @@ export const GAME_ROLES = {
     ADMIN: "admin",
     BARON: "baron",
     MCQ: "mcq"
+}
+
+export const ProfileUtils = {
+    generateProfileImageFromCode: (code) => {
+        return `assets/profiles/${code}.webp`;
+    }
+}
+
+export const PROFILE_IMAGES_CODES = {
+    admin: ["786"],
+    baron: ["839"],
+    mcq: ["778", "779", "780"]
 }

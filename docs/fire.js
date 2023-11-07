@@ -1,7 +1,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.5.2/firebase-app.js";
 import { getDatabase, ref, child, get, set, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.5.2/firebase-database.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.5.2/firebase-auth.js"
-import { GAME_ROLES, RoomUtils, WAIT_LIST_STATES } from "./game.js";
+import { GAME_ROLES, PROFILE_IMAGES_CODES, RoomUtils, WAIT_LIST_STATES } from "./game.js";
+import { getRandomElementFromArray } from "./util.js";
 
 export class Fire {
     constructor() {
@@ -121,7 +122,7 @@ export class Fire {
         console.log(`Closing room ${roomId}`);
         try {
             await this._setData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_ACTIVE_TIME}`, -1); 
-            console.log(`Removed ${roomId} from lobby`);
+            console.log(`Room ${roomId} is closed`);
         } catch (e) {
             console.log(e);
         }
@@ -182,6 +183,8 @@ export class Fire {
         await this._setData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_BLOCK_LIST}`, defaultBlockList);
         await this._setData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_PASSCODE}`, roomPasscode);
         await this._setData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_GAME_SETTINGS}`, defaultGameSettings);
+
+        await this.addToLobbyList(roomId, GAME_ROLES.ADMIN, true);
         
         console.log(`Created room ${roomId} for ${this.fireUser.uid}`);
 
@@ -223,13 +226,16 @@ export class Fire {
     /**
      * **Admin operation** - Adds a user to the lobbyList 
      */
-    async addToLobbyList(roomId, uid) {
-        let defaultUserReady = false;
+    async addToLobbyList(roomId, uid, isAdmin = false) {
+        let defaultUserReady = isAdmin;
+        let defaultGameRole = isAdmin ? GAME_ROLES.ADMIN : GAME_ROLES.MCQ;
+        let randomRoleImgCode = getRandomElementFromArray(PROFILE_IMAGES_CODES[defaultGameRole]);
 
         try {
             await this._setData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_LOBBY_LIST}/${uid}`, {
                 isReady: defaultUserReady,
-                role: GAME_ROLES.MCQ,
+                role: defaultGameRole,
+                roleImgCode: randomRoleImgCode,
             });
             console.log(`Added ${uid} to room ${roomId} lobby`);
             return true;
@@ -256,8 +262,9 @@ export class Fire {
      * **Admin only operation** - Attaches waitList listener
      */
     attachAdminWaitListListener(roomId) {
-        console.log("Attaching admin listener for WaitList");
+        console.log(`Attaching admin listener for room ${roomId} waitList`);
         var callback = async (data) => {
+            console.log(`Change detected in waitlist for room ${roomId}`)
             await this.moveWaitListUserToLobby(roomId, data);
         }
         return this._onValue(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_WAIT_LIST}`, callback);
@@ -296,7 +303,7 @@ export class Fire {
     }
 
     attachLobbyListListener(roomId, callback) {
-        console.log("Attaching listener for LobbyList");
+        console.log(`Attaching listener for room ${roomId} lobbyList`);
         return this._onValue(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_LOBBY_LIST}`, callback);
     }
 
@@ -313,12 +320,14 @@ export class Fire {
     async isRoomActive(roomId) {
         console.log(`Checking if room ${roomId} is active`);
         try {
+            let activeTime = await this._getData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_ACTIVE_TIME}`);
+            if(!RoomUtils.isRoomActive(activeTime)) return false;
+
             if(await this.isAdminOfRoom(roomId)) return {isAdmin: true};
             let participantInfo = await this.getParticipantOfRoom(roomId);
             if(participantInfo) return {isParticipant: true, isReady: participantInfo.isReady};
 
-            let activeTime = await this._getData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_ACTIVE_TIME}`);
-            return RoomUtils.isRoomActive(activeTime);
+            return true;
         } catch (e) { 
             console.log(e);
         }

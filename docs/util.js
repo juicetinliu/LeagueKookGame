@@ -6,3 +6,8 @@ export function generateRandomString(length, charPool) {
     }
     return out;
 }
+
+export function getRandomElementFromArray(array) {
+  if(!array || !array.length) return null;
+  return array[Math.floor(Math.random()*array.length)];
+}
