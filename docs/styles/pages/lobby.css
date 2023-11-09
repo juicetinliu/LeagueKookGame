@@ -1,6 +1,4 @@
 #lobby-page { 
-    --profile-width: 46px;
-    --profile-height: 80px;
 }
 
 #lobby-room-info-panel {
@@ -63,6 +61,7 @@
     border: 1px solid #FFFFFF;
     overflow: hidden;
     position: relative;
+    cursor: pointer;
 }
 
 .participant-profile-avatar-image {
@@ -88,8 +87,35 @@
 
 .participant-profile-name {
     width: var(--profile-width);
+    text-align: center;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+#participant-role-switcher {
+    position: absolute;
+    z-index: 2;
+    flex-wrap: nowrap;
+    height: auto;
+    gap: 10px;
+}
+
+#participant-role-switcher-content {
+    flex-wrap: nowrap;
+    gap: 20px
+}
+
+.participant-profile-avatar.this-role {
+    border-color: #ffd500;
+    border-width: 3px;
+}
+
+#participant-role-switcher-lightbox {
+    z-index: 1;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: #00000084;
 }
 
 .panel {

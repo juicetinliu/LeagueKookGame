@@ -51,7 +51,7 @@ export class Element { //Any element that exists in HTML
 
             events.forEach(e => {
                 if(this.type === HtmlTypes.CLASS) {
-                    elementExists.forEach(el => {
+                    Array.from(elementExists).forEach(el => {
                         el.addEventListener(e, func);
                     });
                 } else if(this.type === HtmlTypes.ID) {
@@ -67,7 +67,7 @@ export class Element { //Any element that exists in HTML
         let elementExists = this.exists();
         if(elementExists) {
             if(this.type === HtmlTypes.CLASS) {
-                elementExists.forEach(el => {
+                Array.from(elementExists).forEach(el => {
                     el.classList.add(this.HIDE_CLASS);
                 });
             } else if(this.type === HtmlTypes.ID) {
@@ -82,7 +82,7 @@ export class Element { //Any element that exists in HTML
         let elementExists = this.exists();
         if(elementExists) {
             if(this.type === HtmlTypes.CLASS) {
-                elementExists.forEach(el => {
+                Array.from(elementExists).forEach(el => {
                     el.remove();
                 });
             } else if(this.type === HtmlTypes.ID) {
@@ -123,7 +123,7 @@ export class Element { //Any element that exists in HTML
         let elementExists = this.exists();
         if(elementExists) {
             if(this.type === HtmlTypes.CLASS) {
-                elementExists.forEach(el => {
+                Array.from(elementExists).forEach(el => {
                     el.classList.remove(this.HIDE_CLASS);
                 });
             } else if(this.type === HtmlTypes.ID) {

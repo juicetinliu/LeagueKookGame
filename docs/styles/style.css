@@ -19,6 +19,9 @@
     --panel-primary-background: #1b2535;
     --text-color: #fafafa;
     --text-color-faded: #b7b7b7;
+
+    --profile-width: 46px;
+    --profile-height: 80px;
 }
 
 html, body {
@@ -33,6 +36,7 @@ body {
     justify-content: center;
     align-items: center;
     margin: 0;
+    position: relative;
 }
 
 #main {

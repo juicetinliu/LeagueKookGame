@@ -1,7 +1,6 @@
 import { Component, documentCreateElement, Element } from "../components.js";
-import { GAME_ROLES, GameUtils, PROFILE_IMAGES_CODES, ProfileUtils } from "../game.js";
+import { GAME_ROLE_SELECTION, GAME_ROLES, GameUtils, PROFILE_IMAGES_CODES, ProfileUtils } from "../game.js";
 import { Page } from "../page.js";
-import { getRandomElementFromArray } from "../util.js";
 
 export class LobbyPage extends Page {
     constructor(app) {
@@ -43,6 +42,8 @@ export class LobbyPage extends Page {
         this.lobbyUserList = [];
         this.participantProfileCards = [];
 
+        this.participantRoleSwitcher = null;
+
         this.waitListListener = null;
         this.lobbyListListener = null;
 
@@ -59,21 +60,31 @@ export class LobbyPage extends Page {
         this.participantProfileCards = [];
     }
 
+    loadFromState(state) {
+        this.reset();
+        this.setRoomParameters(state.roomId, state.roomPasscode, state.isAdmin, state.isRoomLocked, state.isReady);
+        super.loadFromState(state);
+    }
+
     setup(setupArgs) {
-        let state = Object.values(this.pageState).length ? this.pageState : setupArgs;
         this.reset();
         this.updateRoomWhenParticipantsChange(null);
 
-        this.setRoomParameters(state.roomId, state.roomPasscode, state.isAdmin, state.isRoomLocked, state.isReady);
+        this.setRoomParameters(setupArgs.roomId, setupArgs.roomPasscode, setupArgs.isAdmin, setupArgs.isRoomLocked, setupArgs.isReady);
         if(this.waitListListener) {
             this.waitListListener(); //unsubscribes the listener.
+            console.log("Unsubscribed previous admin listener");
         }
         if(this.lobbyListListener) {
             this.lobbyListListener(); //unsubscribes the listener.
+            console.log("Unsubscribed previous lobby list listener");
         }
         if(this.isAdmin) {
             this.waitListListener = this.app.fire.attachAdminWaitListListener(this.roomId);
             this.attachLobbyListListener();
+            this.participantRoleSwitcher = new ParticipantRoleSwitcher(this, this.app);
+            this.participantRoleSwitcher.create();
+            this.participantRoleSwitcher.setup();
         } else {
             this.waitListListener = this.app.fire.attachParticipantWaitListListener(this.roomId, () => {
                 this.attachLobbyListListener();
@@ -82,6 +93,11 @@ export class LobbyPage extends Page {
                     this.waitListListener();
                 }
             });
+            if(this.participantRoleSwitcher) {
+                this.participantRoleSwitcher.delete();
+                console.log("deleted");
+                this.participantRoleSwitcher = null;
+            }
         }
 
         //We can reregister since we recreate the control panel content (listeners are lost)
@@ -165,6 +181,7 @@ export class LobbyPage extends Page {
     updateRoomWhenParticipantsChange(data) {
         console.log("Updating participants list:", data);
         this.roomParticipantsPanel.getElement().innerHTML = this.createParticipantsPanelContent(data);
+        this.participantProfileCards.forEach(card => {card.setup()});
         if(this.isAdmin) {
             if(data) {
                 let participantData = Object.values(data);
@@ -293,20 +310,28 @@ class ParticipantProfileCard extends Component {
         this.profileImgSrc = profileImgSrc;
         this.isCurrentUser = uid === this.app.fire.fireUser.uid || (this.isAdmin && page.isAdmin);
 
-        this.PROFILE_AVATAR_CLASS = "participant-profile-avatar";
+        this.PROFILE_AVATAR_ID = `participant-profile-avatar-${uid}`;
 
-        this.profileAvatar = new Element("id", this.PROFILE_AVATAR_CLASS);
+        this.profileAvatar = new Element("id", this.PROFILE_AVATAR_ID);
     }
 
     setup() {
-        this.profileAvatar.addEventListener(["click"], () => {
-
-        })
+        if(this.page.isAdmin) {
+            this.profileAvatar.addEventListener(["click"], () => {
+                let roleSwitcher = this.page.participantRoleSwitcher;
+                roleSwitcher.updateRoleSwitcherOptions(this.uid, this.role);
+                roleSwitcher.show();
+            })
+        }
         super.setup();
     }
 
     show() {
         super.show();
+    }
+
+    scrollCardToTop() {
+
     }
 
     static createFromProfile(user, page) {
@@ -318,11 +343,11 @@ class ParticipantProfileCard extends Component {
             <div id="${this.label}" class="participant-profile-card ${this.isCurrentUser ? "this-user" : ""}">
                 ${(this.isReady || this.isAdmin) ? `
                     <div class="participant-profile-ready-blocker">
-                        Ready
+                        ${this.isAdmin ? "" : "Ready!"}
                     </div>
                 ` : ""}
                 <div class="participant-profile-vert-wrapper v vh-c hv-c">
-                    <div class="${this.profileAvatar.label}">
+                    <div id="${this.profileAvatar.label}" class="participant-profile-avatar">
                         <div class="participant-profile-role-hover">
                             ${this.roleString}
                         </div>
@@ -330,7 +355,7 @@ class ParticipantProfileCard extends Component {
                         </img>
                     </div>
                     <div class="participant-profile-name">
-                        ${this.uid}
+                        ${this.isCurrentUser ? "You" : this.uid}
                     </div>
                 </div>
             </div>
@@ -338,7 +363,110 @@ class ParticipantProfileCard extends Component {
         super.create();
         return out;
     }
+}
+
+class ParticipantRoleSwitcher extends Component {
+    constructor(page, app) {
+        super("id", "participant-role-switcher", page, app);
+
+        this.lightBox = new Element("id", this.label+"-lightbox");
+
+        this.PARTICIPANT_ROLE_SWITCHER_CONTENT_ID = "participant-role-switcher-content";
+        this.ROLE_SELECTION_OPTION_CLASS = "role-switcher-selection-option";
+
+        this.content = new Element("id", this.PARTICIPANT_ROLE_SWITCHER_CONTENT_ID);
+
+        this.roleOptions = new Element("class", this.ROLE_SELECTION_OPTION_CLASS);
+
+        this.selectedUid = null;
+        this.selectedRole = null;
+    }
+
+    show() {
+        this.lightBox.show();
+        super.show();
+    }
+
+    hide() {
+        this.lightBox.hide();
+        super.hide()
+    }
+
+    delete() {
+        this.lightBox.delete();
+        super.delete();
+    }
 
     setup() {
+        this.selectedUid = null;
+        this.selectedRole = null;
+        if(!this.setupCompleted) {
+            this.lightBox.addEventListener(["click"], () => {
+                this.hide();
+            });
+        }
+        super.setup();
+    }
+
+    updateRoleSwitcherOptions(uid, role) {
+        this.selectedUid = uid;
+        this.selectedRole = role;
+        this.content.getElement().innerHTML = this.createRoleSelectionDivs(role);
+        this.roleOptions.addEventListener(["click"], (e) => {
+            let option = e.currentTarget;
+            let newRole = option.dataset.chosenRole;
+            if(this.selectedRole !== newRole) {
+                console.log(`updating role for ${uid} from ${role} to ${newRole}`);
+            }
+            this.hide();
+        });
+    }
+
+    createRoleAvatar(role, selectedRole) {
+        let profileImgSrc = ProfileUtils.generateProfileImageFromCode(PROFILE_IMAGES_CODES[role][0]);
+        let roleString = GameUtils.convertRoleToDisplayString(role);
+        return `
+            <div data-chosen-role="${role}" class="participant-profile-avatar role-switcher-selection-option ${selectedRole === role ? "this-role" : ""}">
+                <div class="participant-profile-role-hover">
+                    ${roleString}
+                </div>
+                <img class="participant-profile-avatar-image" src="${profileImgSrc}">
+                </img>
+            </div>
+        `;
+    }
+
+    createRoleSelectionDivs(selectedRole) {
+        let out = "";
+        if (selectedRole === GAME_ROLES.ADMIN) {
+            GAME_ROLE_SELECTION.ADMIN.forEach(role => {
+                out += this.createRoleAvatar(role, selectedRole);
+            })
+        } else {
+            GAME_ROLE_SELECTION.NON_ADMIN.forEach(role => {
+                out += this.createRoleAvatar(role, selectedRole);
+            })
+        }
+        return out;
+    }
+
+    create() {
+        if(!this.exists()) {
+            let participantRoleSwitcher = documentCreateElement("div", this.label, ["panel", "hide", "v", "vh-c", "hv-c"]);
+            participantRoleSwitcher.innerHTML = `
+                    <div id="participant-role-switcher-header">
+                        Switch roles
+                    </div>
+                    <div id="${this.PARTICIPANT_ROLE_SWITCHER_CONTENT_ID}" class="h hv-c vh-c">
+                        ${this.createRoleSelectionDivs()}
+                    </div>
+                </div>
+            `;
+
+            let lightBox = documentCreateElement("div", this.lightBox.label, "hide");
+            document.body.appendChild(participantRoleSwitcher);
+            document.body.appendChild(lightBox);
+            super.create();
+        }
     }
 }

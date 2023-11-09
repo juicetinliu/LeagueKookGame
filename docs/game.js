@@ -22,7 +22,7 @@ const RoomConstants = {
     minMCQRoleCount: 2,
 
 
-    roomActiveDuration: 3600000, //1 hour until a room is considered "inactive"
+    roomActiveDuration: 3 * 60 * 60 * 1000, //3 hours until a room is considered "inactive"
 }
 
 export const RoomUtils = {
@@ -61,6 +61,11 @@ export const GAME_ROLES = {
     ADMIN: "admin",
     BARON: "baron",
     MCQ: "mcq"
+}
+
+export const GAME_ROLE_SELECTION = {
+    ADMIN: [GAME_ROLES.ADMIN, GAME_ROLES.BARON],
+    NON_ADMIN: [GAME_ROLES.MCQ, GAME_ROLES.BARON],
 }
 
 export const ProfileUtils = {
