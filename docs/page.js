@@ -8,6 +8,10 @@ export class Page extends Component {
         this.isShowing = false;
     }
 
+    reset() {
+        this.pageState = {};
+    }
+
     hide() {
         this.isShowing = false;
         super.hide();
@@ -27,10 +31,6 @@ export class Page extends Component {
     setup() {
         //common page functions
         super.setup();
-    }
-
-    loadFromState(state) {
-        console.log(state);
     }
 
     unloadToState() {

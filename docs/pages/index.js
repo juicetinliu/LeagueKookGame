@@ -1,4 +1,5 @@
 import { documentCreateElement, Element } from "../components.js";
+import { GAME_STATES } from "../game.js";
 import { Page } from "../page.js";
 
 export class IndexPage extends Page {
@@ -18,6 +19,7 @@ export class IndexPage extends Page {
             });
             this.createRoomButton.addEventListener(["click"], async () => {
                 let roomDetails = await this.app.fire.createRoom();
+                console.log("=== GOING TO NEW LOBBY ===");
                 this.app.goToPage(this.app.pages.lobby, roomDetails);
             });
         }
@@ -28,21 +30,19 @@ export class IndexPage extends Page {
         super.setup();
     }
 
-    create() {
+    create() {        
         let page = documentCreateElement("div", this.label, "page");
         
-        let joinRoomButton = documentCreateElement("button", this.JOIN_ROOM_BUTTON_ID, "index-main-button");
-        joinRoomButton.innerText = "Join Room";
-
-        let createRoomButton = documentCreateElement("button", this.CREATE_ROOM_BUTTON_ID, "index-main-button");
-        createRoomButton.innerText = "Create Room";
-
-        let buttonWrapper = documentCreateElement("div", "index-content-row", "h hv-c vh-c".split(" "));
-
-        buttonWrapper.appendChild(joinRoomButton);
-        buttonWrapper.appendChild(createRoomButton);
-
-        page.appendChild(buttonWrapper);
+        page.innerHTML = `
+            <div id="index-content-row" class="h hv-c vh-c">
+                <button id="${this.joinRoomButton.label}" class="index-main-button">
+                    Join Room
+                </button>
+                <button id="${this.createRoomButton.label}" class="index-main-button">
+                    Create Room
+                </button>
+            </div>
+        `;
         
         super.create();
         return page;
@@ -90,19 +90,21 @@ export class JoinRoomPage extends Page {
                 this.roomId = this.roomCodeInput.getElement().value;
                 let roomId = this.roomId;
 
-                let isRoomActive = await this.app.fire.isRoomActive(roomId);
+                let isRoomActive = await this.app.fire.getIsRoomActive(roomId);
                 if(isRoomActive) {
                     // window.location.hash = roomId;
                     if(isRoomActive.isAdmin || isRoomActive.isParticipant) {
-                        let roomState = await this.app.fire.fetchRoomState(roomId);
+                        let roomState = await this.app.fire.getRoomState(roomId);
 
                         if(roomState) {
+                            console.log("=== GOING TO EXISTING LOBBY ===");
                             this.app.goToPage(this.app.pages.lobby, {
                                 roomId: roomId,
                                 roomPasscode: roomState ? roomState.passcode : roomPass,
                                 isAdmin: isRoomActive.isAdmin,
                                 isRoomLocked: roomState ? roomState.isRoomLocked : false,
                                 isReady: isRoomActive.isReady ? isRoomActive.isReady : false,
+                                gameStarted: roomState.gameState === GAME_STATES.GAME
                             });
                             return;
                         }
@@ -123,14 +125,16 @@ export class JoinRoomPage extends Page {
                 if(joinSucceded) {
                     let roomState;
                     if(joinSucceded.isAdmin || joinSucceded.isParticipant) {
-                        roomState = await this.app.fire.fetchRoomState(roomId);
+                        roomState = await this.app.fire.getRoomState(roomId);
                     }
+                    console.log("=== GOING TO EXISTING LOBBY ===");
                     this.app.goToPage(this.app.pages.lobby, {
                         roomId: roomId,
                         roomPasscode: roomState ? roomState.passcode : roomPass,
                         isAdmin: joinSucceded.isAdmin,
                         isRoomLocked: roomState ? roomState.isRoomLocked : false,
                         isReady: joinSucceded.isReady ? joinSucceded.isReady : false,
+                        gameStarted: roomState.gameState === GAME_STATES.GAME
                     });
                     return;
                 } else {
@@ -172,10 +176,5 @@ export class JoinRoomPage extends Page {
 
     show(args) {
         super.show();
-    }
-
-    loadFromState(state) {
-        this.roomCodeInput.getElement().value = state.roomCodeInput;
-        super.loadFromState(state);
     }
 }

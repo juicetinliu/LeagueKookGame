@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.5.2/firebase-app.js";
 import { getDatabase, ref, child, get, set, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.5.2/firebase-database.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.5.2/firebase-auth.js"
-import { GAME_ROLES, PROFILE_IMAGES_CODES, RoomUtils, WAIT_LIST_STATES } from "./game.js";
+import { GAME_ROLES, GAME_STATES, PROFILE_IMAGES_CODES, RoomUtils, WAIT_LIST_STATES } from "./game.js";
 import { getRandomElementFromArray } from "./util.js";
 
 export class Fire {
@@ -39,6 +39,8 @@ export class Fire {
             ROOM_BLOCK_LIST: "blockList",
             ROOM_WAIT_LIST: "waitList",
             ROOM_LOBBY_LIST: "lobbyList",
+            ROOM_GAME_STATE: "gameState",
+            ROOM_GAME_CHANNEL: "gameChannel",
         }
 
         onAuthStateChanged(this.auth, (user) => {
@@ -76,7 +78,7 @@ export class Fire {
     }
 
     async joinWaitList(roomId, passcode) {
-        console.log(`Attempting to join waitList for room ${roomId}`);
+        console.log(`Attempting to join WaitList for room ${roomId}`);
         if(await this.isAdminOfRoom(roomId)) return {isAdmin: true};
         let participantInfo = await this.getParticipantOfRoom(roomId);
         if(participantInfo) return {isParticipant: true, isReady: participantInfo.isReady};
@@ -86,7 +88,7 @@ export class Fire {
                 passcode: passcode,
                 state: WAIT_LIST_STATES.WAITING,
             });
-            console.log(`Added ${this.fireUser.uid} to waitlist of room ${roomId}`);
+            console.log(`Added ${this.fireUser.uid} to WaitList of room ${roomId}`);
 
             return {isAdmin: false};
         } catch (e) {
@@ -102,13 +104,13 @@ export class Fire {
         console.log(`Leaving room ${roomId}`);
         try {
             await this._removeData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_LOBBY_LIST}/${this.fireUser.uid}`);
-            console.log(`Removed ${this.fireUser.uid} from lobby`);
+            console.log(`Removed ${this.fireUser.uid} from LobbyList`);
         } catch (e) {
             console.log(e);
         }
         try {
             await this._removeData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_WAIT_LIST}/${this.fireUser.uid}`);
-            console.log(`Removed ${this.fireUser.uid} from waitlist`);
+            console.log(`Removed ${this.fireUser.uid} from WaitList`);
         } catch (e) {
             console.log(e);
         }
@@ -140,12 +142,29 @@ export class Fire {
     }
 
     async updateParticipantReady(roomId, readyState) {
+        return await this._updateParticipantInfo(roomId, {
+            isReady: readyState ? true : false
+        });
+    }
+
+    async updateParticipantRole(roomId, uid, newRole) {
+        if(!newRole || !Object.values(GAME_ROLES).includes(newRole)) {
+            console.log(`${newRole} is not a valid game role`);
+            return false;
+        }
+        return await this._updateParticipantInfo(roomId, {
+            role: newRole,
+            roleImgCode: getRandomElementFromArray(PROFILE_IMAGES_CODES[newRole])
+        }, uid);
+    }
+
+    async _updateParticipantInfo(roomId, participantInfo, uid = null) {
         try {
-            await this._updateData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_LOBBY_LIST}/${this.fireUser.uid}`, 
-            {
-                isReady: readyState ? true : false
+            let uidToSet = uid ? uid : this.fireUser.uid;
+            await this._updateData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_LOBBY_LIST}/${uidToSet}`, participantInfo);
+            Object.entries(participantInfo).forEach((infoKeyValue) => {
+                console.log(`Set ${uidToSet} ${infoKeyValue[0]} to "${infoKeyValue[1]}" in lobby`);
             });
-            console.log(`Set ${this.fireUser.uid} to isReady: ${readyState} in lobby`);
             return true;
         } catch (e) {
             console.log(e);
@@ -156,8 +175,13 @@ export class Fire {
     /**
      * **Admin only operation** - Starts the game
      */    
-    async startGame() {
-        //TODOOOOO
+    async startGame(roomId) {
+        console.log("=== STARTING GAME ===");
+        try {
+            await this._setData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_GAME_STATE}`, GAME_STATES.GAME);
+        } catch (e) {
+            console.log(e);
+        }
     }
 
     /**
@@ -166,11 +190,11 @@ export class Fire {
     async createRoom() {
         let defaultAdminData = {
             id: this.fireUser.uid,
-            isBaron: false
         }
 
         let defaultActiveTime = Date.now();
         let defaultLockedState = false;
+        let defaultGameState = GAME_STATES.LOBBY;
         let defaultBlockList = {};
         let defaultGameSettings = {};
 
@@ -180,6 +204,7 @@ export class Fire {
         await this._setData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_ADMIN}`, defaultAdminData);
         await this._setData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_ACTIVE_TIME}`, defaultActiveTime);
         await this._setData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_LOCKED}`, defaultLockedState);
+        await this._setData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_GAME_STATE}`, defaultGameState);
         await this._setData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_BLOCK_LIST}`, defaultBlockList);
         await this._setData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_PASSCODE}`, roomPasscode);
         await this._setData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_GAME_SETTINGS}`, defaultGameSettings);
@@ -196,13 +221,14 @@ export class Fire {
         }
     }
 
-    async fetchRoomState(roomId) {
+    async getRoomState(roomId) {
         console.log(`Fetching room ${roomId} information`);
         try {
             let pass = await this._getData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_PASSCODE}`);
             let locked = await this._getData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_LOCKED}`);
+            let gameState = await this._getData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_GAME_STATE}`);
 
-            return {passcode: pass, isRoomLocked: locked};
+            return {passcode: pass, isRoomLocked: locked, gameState: gameState};
         } catch (e) {
             console.log(e);
         }
@@ -246,10 +272,24 @@ export class Fire {
     }
 
     /**
-     * **Participant only operation** - Listens to waitlist state changes
+     * **Participant only operation** - Listens to game state changes
+     */  
+    attachParticipantGameStateListener(roomId, gameStateStartedCallback) {
+        console.log("Attaching participant listener for GameState");
+        var callback = async (gameState) => {
+            if(gameState && gameState === GAME_STATES.GAME) {
+                console.log(gameState);
+                await gameStateStartedCallback();
+            }
+        }
+        return this._onValue(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_GAME_STATE}`, callback);
+    }
+
+    /**
+     * **Participant only operation** - Listens to Waitlist state changes
      */  
     attachParticipantWaitListListener(roomId, waitlistRemoveCallback) {
-        console.log("Attaching participant listener for waitList");
+        console.log("Attaching participant listener for WaitList");
         var callback = async (data) => {
             if(data && data.state && data.state === WAIT_LIST_STATES.ADDED) {
                 await waitlistRemoveCallback();
@@ -259,12 +299,12 @@ export class Fire {
     }
 
     /**
-     * **Admin only operation** - Attaches waitList listener
+     * **Admin only operation** - Attaches WaitList listener
      */
     attachAdminWaitListListener(roomId) {
-        console.log(`Attaching admin listener for room ${roomId} waitList`);
+        console.log(`Attaching admin listener for room ${roomId} WaitList`);
         var callback = async (data) => {
-            console.log(`Change detected in waitlist for room ${roomId}`)
+            console.log(`Change detected in Waitlist for room ${roomId}`)
             await this.moveWaitListUserToLobby(roomId, data);
         }
         return this._onValue(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_WAIT_LIST}`, callback);
@@ -278,7 +318,7 @@ export class Fire {
             await Object.entries(data).forEach(async (userData) => {
                 let uid = userData[0];
                 let state = userData[1].state;
-                console.log(`Found ${uid} in waitlist with state ${state}`);
+                console.log(`Found ${uid} in Waitlist with state ${state}`);
                 if (state === WAIT_LIST_STATES.WAITING && await this.addToLobbyList(roomId, uid)) {
                     await this.setWaitListUserToState(roomId, uid, WAIT_LIST_STATES.ADDED);
                 }
@@ -294,7 +334,7 @@ export class Fire {
             await this._updateData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_WAIT_LIST}/${uid}`, {
                 state: state,
             });
-            console.log(`Set ${uid} state in waitlist to ${state}`);
+            console.log(`Set ${uid} state in Waitlist to ${state}`);
             return true;
         } catch (e) {
             console.log(e);
@@ -303,21 +343,11 @@ export class Fire {
     }
 
     attachLobbyListListener(roomId, callback) {
-        console.log(`Attaching listener for room ${roomId} lobbyList`);
+        console.log(`Attaching listener for room ${roomId} LobbyList`);
         return this._onValue(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_LOBBY_LIST}`, callback);
     }
 
-    // async getLobbyList(roomId) {
-    //     console.log(`Fetching room ${roomId} lobby list`)
-    //     try {
-    //         return await this._getData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_LOBBY_LIST}`);
-    //     } catch (e) { 
-    //         console.log(e);
-    //     }
-    //     return null;
-    // }
-
-    async isRoomActive(roomId) {
+    async getIsRoomActive(roomId) {
         console.log(`Checking if room ${roomId} is active`);
         try {
             let activeTime = await this._getData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_ACTIVE_TIME}`);

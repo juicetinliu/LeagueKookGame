@@ -11,6 +11,12 @@ export const WAIT_LIST_STATES = {
     ADDED: "Added"
 }
 
+export const GAME_STATES = {
+    LOBBY: "Lobby",
+    GAME: "Game",
+    END: "End",
+}
+
 const RoomConstants = {
     roomCodeLength: 6,
     roomCodeCharacterPool: 'abcdefghijklmnopqrstuvwxyz0123456789',
@@ -39,8 +45,11 @@ export const RoomUtils = {
 }
 
 export const GameUtils = {
-    verifyGameStartCondition: (adminData, usersData) => {
+    verifyGameStartCondition: (usersData) => {
+        //ensure all users are ready
         let ret = usersData.every(user => {return user.isReady});
+
+        //ensure game minimum requirements are met
         let numMCQ = 0;
         let numBaron = 0;
         usersData.forEach(user => {
@@ -54,7 +63,8 @@ export const GameUtils = {
     convertRoleToDisplayString: (role) => {
         const stringMapping = {admin: "Admin", baron: "Baron", mcq: "MCQ"};
         return stringMapping[role];
-    }
+    },
+    // assignQuestions = (questions) => {}
 }
 
 export const GAME_ROLES = {

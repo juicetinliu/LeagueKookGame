@@ -1,7 +1,10 @@
 import { documentCreateElement, Element } from "./components.js";
 import { Fire } from "./fire.js";
+import { AdminGamePage } from "./pages/admin.js";
+import { BaronGamePage } from "./pages/baron.js";
 import { IndexPage, JoinRoomPage } from "./pages/index.js";
 import { LobbyPage } from "./pages/lobby.js";
+import { MCQGamePage } from "./pages/mcq.js";
 
 export class App {
     constructor() {
@@ -15,6 +18,9 @@ export class App {
             index: new IndexPage(this),
             joinRoom: new JoinRoomPage(this),
             lobby: new LobbyPage(this),
+            adminGame: new AdminGamePage(this),
+            baronGame: new BaronGamePage(this),
+            mcqGame: new MCQGamePage(this),
         };
 
         this.currentPage = null;
@@ -29,11 +35,11 @@ export class App {
 
     async start() {
         await this.fire.createAnonymousUser();
-        this.goToPage(this.pages.index, {}, {}, null, false);
+        this.goToPage(this.pages.index, {}, {}, false);
         this.savePageStateToHistory(true);
     }
 
-    goToPage(page, setupArgs = {}, showArgs = {}, stateToLoadFrom = null, saveToHistory = true) {
+    goToPage(page, setupArgs = {}, showArgs = {}, saveToHistory = true) {
         this.main.hide();
 
         Object.values(this.pages).forEach(page => {
@@ -41,7 +47,6 @@ export class App {
         });
         this.currentPage = page;
         if(saveToHistory) this.savePageStateToHistory();
-        if(stateToLoadFrom) this.currentPage.loadFromState(stateToLoadFrom);
         this._renderCurrentPage(setupArgs, showArgs);
     }
 
@@ -84,7 +89,7 @@ export class App {
         if(state) {
             let currentPageId = state.currentPageId;
             let pageState = (state.pageState && Object.keys(state.pageState).length) ? state.pageState : null ;
-            this.goToPage(this.pages[currentPageId], {}, {}, pageState, false);
+            this.goToPage(this.pages[currentPageId], pageState, {}, false);
         }
     }
 
