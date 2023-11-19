@@ -41,13 +41,6 @@ export class LobbyPage extends Page {
         this.roomControlsSettingsButton = new Element("id", ROOM_SETTINGS_BUTTON_ID);
         this.roomGoToGameButton = new Element("id", GO_TO_GAME_BUTTON_ID);
 
-
-        this.participantRoleSwitcher = null;
-
-        this.waitListListener = null;
-        this.lobbyListListener = null;
-        this.gameStateListener = null;
-
         this.reset();
     }
 
@@ -76,19 +69,22 @@ export class LobbyPage extends Page {
         if(this.participantRoleSwitcher) {
             this.participantRoleSwitcher.delete();
             console.log("Deleted role switcher");
-            this.participantRoleSwitcher = null;
         }
+        this.participantRoleSwitcher = null;
+        this.waitListListener = null;
+        this.lobbyListListener = null;
+        this.gameStateListener = null;
         super.reset();
     }
 
     setup(setupArgs) {
         this.reset();
-        this.updateRoomWhenParticipantsChange(null);
         this.setRoomParametersAndPageState(setupArgs);
         this.setInitialRoomPageElements();
 
         if(this.gameStarted) console.log("Game already started; still setting up lobby");
 
+        // Attach firebase listeners
         if(this.isAdmin) {
             this.waitListListener = this.app.fire.attachAdminWaitListListener(this.roomId);
             this.attachLobbyListListener();
@@ -103,6 +99,7 @@ export class LobbyPage extends Page {
                 if(this.waitListListener) {
                     console.log("Unsubscribed WaitList Listener");
                     this.waitListListener();
+                    this.waitListListener = null;
                 }
             });
             if(!this.gameStarted) {
@@ -116,6 +113,7 @@ export class LobbyPage extends Page {
                     if(this.gameStateListener) {
                         console.log("Unsubscribed GameState Listener");
                         this.gameStateListener();
+                        this.gameStateListener = null;
                     }
                 });
             } else {
@@ -123,6 +121,7 @@ export class LobbyPage extends Page {
             }
         }
 
+        this.updateRoomWhenParticipantsChange(null);
 
         //We can reregister since we recreate the control panel content (listeners are lost)
         if(this.isAdmin) {
@@ -263,7 +262,7 @@ export class LobbyPage extends Page {
 
     updateRoomWhenParticipantsChange(data) {
         console.log("Updating participants list:", data);
-        this.roomParticipantsPanel.getElement().innerHTML = this.createParticipantsPanelContent(data);
+        this.roomParticipantsPanel.getElement().innerHTML = (!this.isAdmin && this.waitListListener) ? this.createWaitingRoomContent() : this.createParticipantsPanelContent(data);
         this.participantProfileCards.forEach(card => {card.setup()});
         if(this.isAdmin && !this.gameStarted) {
             if(data) {
@@ -274,6 +273,15 @@ export class LobbyPage extends Page {
                 this.roomControlsStartButton.getElement().disabled = true;
             }
         }
+    }
+
+    createWaitingRoomContent() {
+        return `
+            <div id="lobby-room-waiting-room-content" class="v vh-c hv-c">
+                Waiting to join room...
+                <img id="lobby-room-waiting-room-loader" src="assets/ornn/ornn.gif"></img>
+            </div>
+        `;
     }
 
     createParticipantsPanelContent(participants) {
@@ -294,7 +302,11 @@ export class LobbyPage extends Page {
         this.participantProfileCards.forEach(card => {
             participantsPanelContent += card.create();
         })
-        return participantsPanelContent;
+        return `
+            <div id="lobby-room-participants-content" class="h vh-t hv-l">
+                ${participantsPanelContent}
+            </div>
+        `;
     }
 
     create() {
@@ -304,7 +316,7 @@ export class LobbyPage extends Page {
             <div id="lobby-page-content" class="h hv-c vh-c">
                 <div id="lobby-page-content-vert-wrapper" class="v vh-c hv-c">
                     ${this.createRoomInfoPanel()}
-                    <div id="${this.roomParticipantsPanel.label}" class="panel h vh-t hv-l">
+                    <div id="${this.roomParticipantsPanel.label}" class="panel h vh-c hv-c">
                     </div>
                     <div id="${this.roomControlsPanel.label}" class="panel">
                         ${this.createRoomControlsPanelContent()}

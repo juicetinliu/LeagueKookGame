@@ -134,7 +134,7 @@ export class JoinRoomPage extends Page {
                         isAdmin: joinSucceded.isAdmin,
                         isRoomLocked: roomState ? roomState.isRoomLocked : false,
                         isReady: joinSucceded.isReady ? joinSucceded.isReady : false,
-                        gameStarted: roomState.gameState === GAME_STATES.GAME
+                        gameStarted: roomState ? roomState.gameState === GAME_STATES.GAME : false
                     });
                     return;
                 } else {
