@@ -47,7 +47,6 @@ export class LobbyPage extends Page {
     reset() {
         this.roomId = null;
         this.roomPasscode = null;
-        this.role = null;
         this.isAdmin = false;
         this.isRoomLocked = false;
         this.isReady = false;
@@ -183,10 +182,14 @@ export class LobbyPage extends Page {
 
     goToGamePage() {
         let role = this.getCurrentUserGameRole();
+        let adminSetupArgs = {isAdmin: this.isAdmin};
+        if(this.isAdmin) {
+            adminSetupArgs["lobbyUserList"] = this.lobbyUserList;
+        }
         if(role === GAME_ROLES.ADMIN) {
-            this.app.goToPage(this.app.pages.adminGame);
+            this.app.goToPage(this.app.pages.adminGame, adminSetupArgs);
         } else if (role === GAME_ROLES.BARON) {
-            this.app.goToPage(this.app.pages.baronGame);
+            this.app.goToPage(this.app.pages.baronGame, adminSetupArgs);
         } else if (role === GAME_ROLES.MCQ) {
             this.app.goToPage(this.app.pages.mcqGame);
         } else {
@@ -244,7 +247,6 @@ export class LobbyPage extends Page {
     setRoomParametersAndPageState(setupArgs) {
         this.roomId = setupArgs.roomId;
         this.roomPasscode = setupArgs.roomPasscode;
-        this.role = setupArgs.role;
         this.isAdmin = setupArgs.isAdmin;
         this.isRoomLocked = setupArgs.isRoomLocked;
         this.isReady = setupArgs.isReady;
@@ -252,12 +254,10 @@ export class LobbyPage extends Page {
 
         this.pageState.roomId = this.roomId;
         this.pageState.roomPasscode = this.roomPasscode;
-        this.pageState.role = this.role;
         this.pageState.isAdmin = this.isAdmin;
         this.pageState.isRoomLocked = this.isRoomLocked;
         this.pageState.isReady = this.isReady;
         this.pageState.gameStarted = this.gameStarted;
-
     }
 
     updateRoomWhenParticipantsChange(data) {

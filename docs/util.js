@@ -11,3 +11,8 @@ export function getRandomElementFromArray(array) {
   if(!array || !array.length) return null;
   return array[Math.floor(Math.random()*array.length)];
 }
+
+export function popRandomElementFromArray(array) {
+  if(!array || !array.length) return null;
+  return array.splice(Math.floor(Math.random()*array.length), 1)[0];
+}
