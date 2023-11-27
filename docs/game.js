@@ -48,23 +48,25 @@
  * etc!
  */
 
+import { FireMCQQuestion } from "./question.js";
 import { generateRandomString, popRandomElementFromArray } from "./util.js";
 
 export const WAIT_LIST_STATES = {
     /**
      * Participant joins, admin not yet processed
      */
-    WAITING: "Waiting",
+    WAITING: "waiting",
     /**
      * Admin processed, participant not yet acked
      */
-    ADDED: "Added"
+    ADDED: "added"
 }
 
 export const GAME_STATES = {
-    LOBBY: "Lobby",
-    GAME: "Game",
-    END: "End",
+    LOBBY: "lobby",
+    GAME_INIT: "gameInit",
+    GAME_STARTED: "gameStarted",
+    END: "end",
 }
 
 const RoomConstants = {
@@ -114,7 +116,15 @@ export const GameUtils = {
         const stringMapping = {admin: "Admin", baron: "Baron", mcq: "MCQ"};
         return stringMapping[role];
     },
-    // assignQuestions = (questions) => {}
+    hasGameStarted: (gameState) => { 
+        return gameState === GAME_STATES.GAME_INIT || gameState === GAME_STATES.GAME_STARTED;
+    },
+    isGameInProgress: (gameState) => {
+        return gameState === GAME_STATES.GAME_STARTED;
+    },
+    isLobbyOpen: (gameState) => { 
+        return gameState === GAME_STATES.LOBBY;
+    },
 }
 
 export const GAME_ROLES = {
@@ -145,42 +155,68 @@ const DefaultGameConstants = {
     randomSequenceMultiplier: 2,
 }
 
-const TEAM = {
-    RED: "Red",
-    BLUE: "Blue"
+export const TEAM = {
+    RED: "red",
+    BLUE: "blue"
 }
 
 class Player {
-    constructor(user) {
-        this.user = user;
+    constructor(fireUser) {
+        this.fireUser = fireUser;
     }
 }
 
-class Baron extends Player {
-    constructor(user) {
-        super(user);
+class BaronPlayer extends Player {
+    constructor(fireUser) {
+        super(fireUser);
     }
 }
 
-class MCQ extends Player {
-    constructor(user) {
-        super(user);
-        this.team = null;
+class MCQPlayer extends Player {
+    constructor(fireUser) {
+        super(fireUser);
+        this.assignedTeam = null;
+        this.assignedQuestion = null;
     }
 
     assignToTeam(team) {
-        this.team = team;
+        this.assignedTeam = team;
     }
 
-    completedTeamQuestion() {
-        this.team = null;
+    assignQuestion(question) {
+        this.assignedQuestion = question;
+    }
+
+    getAssignedTeam() {
+        return this.assignedTeam;
+    }
+
+    getAssignedQuestion() {
+        return this.assignedQuestion;
+    }
+
+    completedQuestion() {
+        this.assignedTeam = null;
+        this.assignedQuestion = null;
     }
 
     needsTeamAssignment() {
-        return this.team === null;
+        return this.assignedTeam === null;
+    }
+
+    needsQuestionAssignment() {
+        return this.assignedQuestion === null;
+    }
+
+    toInfo() {
+        return [this.fireUser.uid, this.assignedTeam, this.assignedQuestion.title];
     }
 }
 
+
+/**
+ * This game is only intialized/maintained/run by the ADMIN role.
+ */
 export class LeagueKookGame {
     constructor(app) {
         this.app = app;
@@ -191,13 +227,14 @@ export class LeagueKookGame {
     reset() {
         this.roomId = null;
         this.lobbyUserList = [];
-        this.mcqs = [];
-        this.baron = null;
+        this.mcqPlayerList = [];
+        this.baronPlayer = null;
         this.numMcqs = 0;
         this.furtherTeamAssignmentsPool = [];
+        this.questions = [];
 
-        this.redTeam = [];
-        this.blueTeam = [];
+        this.redTeamQuestions = [];
+        this.blueTeamQuestions = [];
 
         this.minTeamComputers = DefaultGameConstants.minimumTeamComputers;
         this.randomSeqMultiplier = DefaultGameConstants.randomSequenceMultiplier;
@@ -207,22 +244,82 @@ export class LeagueKookGame {
         this.lobbyUserList = setupArgs.lobbyUserList;
     }
 
-    initialize(setupArgs) {
+    async initialize(setupArgs) {
         this.setInitialParams(setupArgs);
         //fetch baron or mcq users
         let filteredBaronUserList = this.lobbyUserList.filter(user => {
             return user.role === GAME_ROLES.BARON
         });
         if(filteredBaronUserList.length !== 1) throw `Expected one Baron user in lobby but got ${filteredBaronUserList}`;
-        this.baron = new Baron(filteredBaronUserList[0]);
-        this.mcqs = this.lobbyUserList.filter(user => {
+        this.baronPlayer = new BaronPlayer(filteredBaronUserList[0]);
+        this.mcqPlayerList = this.lobbyUserList.filter(user => {
             return user.role === GAME_ROLES.MCQ
         }).map(mcqUser => {
-            return new MCQ(mcqUser);
+            return new MCQPlayer(mcqUser);
         });
-        this.numMcqs = this.mcqs.length;
+        this.numMcqs = this.mcqPlayerList.length;
 
         this.assignTeamsToUnassignedMCQs();
+
+        //TODO: MAKE THIS NOT A HARDCODED QUESTION BANK FOR MCQS
+        let questionMap = await this.app.fire.getQuestionBank("0wTG0Gewp2Xw2syg6KdQfnDnknb2_1700902705409");
+        console.log(questionMap);
+        Object.entries(questionMap).forEach(questionInfo => {
+            let questionId = questionInfo[0];
+            let questionContent = questionInfo[1];
+            try {
+                this.questions.push(FireMCQQuestion.createFromFire(questionId, questionContent));
+            } catch (e) { //do nothing for invalid-format questions
+            }
+        });
+        console.log(this.questions);
+        this.redTeamQuestions = this.questions.slice(0);
+        this.blueTeamQuestions = this.questions.slice(0);
+
+        this.assignQuestionsToMCQ();
+        console.log(this.mcqPlayerList.map(mcq => {return mcq.toInfo()}));
+
+        // //Sample game flow
+        // this.mcqs.forEach(mcq => {mcq.completedQuestion()});
+        // this.assignTeamsToUnassignedMCQs();
+        // this.assignQuestionsToMCQ();
+        // console.log(this.mcqs.map(c => {return [c.team, c.assignedQuestion.title]}));
+        // this.mcqs.forEach(mcq => {mcq.completedQuestion()});
+        // this.assignTeamsToUnassignedMCQs();
+        // this.assignQuestionsToMCQ();
+        // console.log(this.mcqs.map(c => {return [c.team, c.assignedQuestion.title]}));
+    }
+
+    /** 
+     * Use after calling {@link assignTeamsToUnassignedMCQs}
+     */
+    assignQuestionsToMCQ() {
+        this.mcqPlayerList.forEach(mcq => {
+            if(mcq.needsQuestionAssignment()){
+                let isTeamBlue = mcq.getAssignedTeam() === TEAM.BLUE;
+                let teamQuestionList = isTeamBlue
+                    ? this.blueTeamQuestions : this.redTeamQuestions;
+                if(teamQuestionList.length === 0) {
+                    console.log(`Team ${mcq.getAssignedTeam()} ran out of questions. Refreshing list`);
+                    if(isTeamBlue) {
+                        this.blueTeamQuestions = this.questions.slice(0);
+                        teamQuestionList = this.blueTeamQuestions;
+                    } else {
+                        this.redTeamQuestions = this.questions.slice(0);
+                        teamQuestionList = this.redTeamQuestions;
+                    }
+                } 
+                let question = popRandomElementFromArray(teamQuestionList);
+                mcq.assignQuestion(question);
+            }
+        });
+    }
+
+    getMCQPlayerList() {
+        return this.mcqPlayerList;
+    }
+    getBaronPlayer() {
+        return this.baronPlayer;
     }
 
     generateTeamAssignmentsPool() {
@@ -243,7 +340,7 @@ export class LeagueKookGame {
     addMinimumTeamComputers(teamAssignments = []) {
         let teamRedCount = 0;
         let teamBluecount = 0;
-        this.mcqs.forEach(mcq => {
+        this.mcqPlayerList.forEach(mcq => {
             if(mcq.team === TEAM.BLUE) teamBluecount++;
             if(mcq.team === TEAM.RED) teamRedCount++;
         });
@@ -261,7 +358,7 @@ export class LeagueKookGame {
         let teamAssignments = this.addMinimumTeamComputers();
 
         //First apply minimum assignment rules
-        let mcqsThatNeedAssignment = this.mcqs.filter(mcq => {
+        let mcqsThatNeedAssignment = this.mcqPlayerList.filter(mcq => {
             return mcq.needsTeamAssignment();
         });
 

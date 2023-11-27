@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.5.2/firebase-app.js";
-import { getDatabase, ref, child, get, set, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.5.2/firebase-database.js";
+import { getDatabase, ref, child, get, set, onValue, remove, update, push } from "https://www.gstatic.com/firebasejs/10.5.2/firebase-database.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.5.2/firebase-auth.js"
-import { GAME_ROLES, GAME_STATES, PROFILE_IMAGES_CODES, RoomUtils, WAIT_LIST_STATES } from "./game.js";
+import { GAME_ROLES, GAME_STATES, GameUtils, PROFILE_IMAGES_CODES, RoomUtils, WAIT_LIST_STATES } from "./game.js";
 import { getRandomElementFromArray } from "./util.js";
 
 export class Fire {
@@ -31,6 +31,7 @@ export class Fire {
 
         this.PATHS = {
             ROOMS: "rooms",
+
             ROOM_ADMIN: "admin",
             ROOM_LOCKED: "locked",
             ROOM_ACTIVE_TIME: "activeTime",
@@ -40,7 +41,17 @@ export class Fire {
             ROOM_WAIT_LIST: "waitList",
             ROOM_LOBBY_LIST: "lobbyList",
             ROOM_GAME_STATE: "gameState",
-            ROOM_GAME_CHANNEL: "gameChannel",
+
+            LOBBY_USER_GAME_COMMS: "gameComms",
+            GAME_COMMS_TO_USER: "toUser",
+            GAME_COMMS_TO_ADMIN: "gameCommsToAdmin",
+
+            QUESTION_BANK: "questionBank",
+            QUESTION_BANK_OWNER: "owner",
+            QUESTION_BANK_QUESTIONS: "questions",
+            QUESTION_ANSWER: "answer",
+            QUESTION_BACKGROUND_IMG: "backgroundImg",
+            QUESTION_TITLE: "title",
         }
 
         onAuthStateChanged(this.auth, (user) => {
@@ -77,20 +88,26 @@ export class Fire {
         return false;
     }
 
+    /**
+     * **Participant only operation** - Join lobby waitlist
+     */
     async joinWaitList(roomId, passcode) {
         console.log(`Attempting to join WaitList for room ${roomId}`);
-        if(await this.isAdminOfRoom(roomId)) return {isAdmin: true};
+        if(await this.isAdminOfRoom(roomId)) return {isAdmin: true, isParticipant: true};
+        
         let participantInfo = await this.getParticipantOfRoom(roomId);
-        if(participantInfo) return {isParticipant: true, isReady: participantInfo.isReady};
+        if(participantInfo) return {isAdmin: false, isParticipant: true, isReady: participantInfo.isReady};
 
         try {
+            let gameState = await this.getRoomGameState(roomId);
+
             await this._setData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_WAIT_LIST}/${this.fireUser.uid}`, {
                 passcode: passcode,
                 state: WAIT_LIST_STATES.WAITING,
             });
             console.log(`Added ${this.fireUser.uid} to WaitList of room ${roomId}`);
 
-            return {isAdmin: false};
+            return {isAdmin: false, isParticipant: false, gameState: gameState};
         } catch (e) {
             console.log(e);
         }
@@ -173,12 +190,29 @@ export class Fire {
     }
 
     /**
-     * **Admin only operation** - Starts the game
-     */    
+     * **Admin only operation** - initializes the game
+     */
+    async initializeGame(roomId) {
+        console.log("=== INITIALIZING GAME ===");
+        let initializeGameState = GAME_STATES.GAME_INIT
+        await this._setGameState(roomId, initializeGameState);
+        return initializeGameState;
+    }
+
+    /**
+     * **Admin only operation** - starts the game
+     */
     async startGame(roomId) {
         console.log("=== STARTING GAME ===");
+        await this._setGameState(roomId, GAME_STATES.GAME_STARTED);
+    }
+
+    /**
+     * **Admin only operation** - sets the game state
+     */    
+    async _setGameState(roomId, gameState) {
         try {
-            await this._setData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_GAME_STATE}`, GAME_STATES.GAME);
+            await this._setData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_GAME_STATE}`, gameState);
         } catch (e) {
             console.log(e);
         }
@@ -217,7 +251,9 @@ export class Fire {
             roomId: roomId,
             roomPasscode: roomPasscode,
             isAdmin: true,
+            isParticipant: true,
             isRoomLocked: defaultLockedState,
+            gameState: defaultGameState,
         }
     }
 
@@ -226,13 +262,22 @@ export class Fire {
         try {
             let pass = await this._getData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_PASSCODE}`);
             let locked = await this._getData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_LOCKED}`);
-            let gameState = await this._getData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_GAME_STATE}`);
+            let gameState = await this.getRoomGameState(roomId);
 
             return {passcode: pass, isRoomLocked: locked, gameState: gameState};
         } catch (e) {
             console.log(e);
         }
         return false;
+    }
+
+    async getRoomGameState(roomId) {
+        try {
+            return this._getData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_GAME_STATE}`);
+        } catch (e) {
+            console.log(e);
+        }
+        return null;
     }
 
     /**
@@ -272,14 +317,26 @@ export class Fire {
     }
 
     /**
-     * **Participant only operation** - Listens to game state changes
+     * **Participant only operation** - Runs callback when game has started changes
      */  
-    attachParticipantGameStateListener(roomId, gameStateStartedCallback) {
+    attachParticipantGameStartListener(roomId, gameStateStartedCallback) {
         console.log("Attaching participant listener for GameState");
         var callback = async (gameState) => {
-            if(gameState && gameState === GAME_STATES.GAME) {
-                console.log(gameState);
-                await gameStateStartedCallback();
+            if(gameState && GameUtils.hasGameStarted(gameState)) {
+                await gameStateStartedCallback(gameState);
+            }
+        }
+        return this._onValue(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_GAME_STATE}`, callback);
+    }
+
+    /**
+     * **Participant only operation** - Lists to game state changes
+     */  
+    attachGameStateListener(roomId, gameStateChangedCallback) {
+        console.log("Attaching listener for GameState");
+        var callback = async (gameState) => {
+            if(gameState) {
+                await gameStateChangedCallback(gameState);
             }
         }
         return this._onValue(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_GAME_STATE}`, callback);
@@ -301,11 +358,13 @@ export class Fire {
     /**
      * **Admin only operation** - Attaches WaitList listener
      */
-    attachAdminWaitListListener(roomId) {
+    attachAdminWaitListListener(roomId, gameState) {
         console.log(`Attaching admin listener for room ${roomId} WaitList`);
         var callback = async (data) => {
-            console.log(`Change detected in Waitlist for room ${roomId}`)
-            await this.moveWaitListUserToLobby(roomId, data);
+            if(GameUtils.isLobbyOpen(gameState)) {
+                console.log(`Change detected in Waitlist for room ${roomId}`)
+                await this.moveWaitListUserToLobby(roomId, data);
+            }
         }
         return this._onValue(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_WAIT_LIST}`, callback);
     }
@@ -353,12 +412,117 @@ export class Fire {
             let activeTime = await this._getData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_ACTIVE_TIME}`);
             if(!RoomUtils.isRoomActive(activeTime)) return false;
 
-            if(await this.isAdminOfRoom(roomId)) return {isAdmin: true};
+            if(await this.isAdminOfRoom(roomId)) return {isAdmin: true, isParticipant: true};
             let participantInfo = await this.getParticipantOfRoom(roomId);
-            if(participantInfo) return {isParticipant: true, isReady: participantInfo.isReady};
+            if(participantInfo) return {isAdmin: false, isParticipant: true, isReady: participantInfo.isReady};
 
             return true;
         } catch (e) { 
+            console.log(e);
+        }
+        return false;
+    }
+
+    //0wTG0Gewp2Xw2syg6KdQfnDnknb2_1700902705409
+    async getQuestionBank(questionBankId) {
+        console.log(`Fetching question bank with id ${questionBankId}`);
+        try {
+            return await this._getData(`/${this.PATHS.QUESTION_BANK}/${questionBankId}/${this.PATHS.QUESTION_BANK_QUESTIONS}`);
+        } catch (e) {
+            console.log(e);
+        }
+        return false;
+    }
+
+    async addQuestionToQuestionBank(questionBankId, question) {
+        console.log(`Adding to question bank with id ${questionBankId}`);
+        try {
+            return await this._pushData(`/${this.PATHS.QUESTION_BANK}/${questionBankId}/${this.PATHS.QUESTION_BANK_QUESTIONS}`, question.toFireFormat());
+        } catch (e) {
+            console.log(e);
+        }
+        return false;
+    }
+
+    /**
+     * **Admin only operation** - Listens to game comms (from participants) changes
+     */  
+    attachAdminGameCommsListener(roomId, gameCommsChangedCallback) {
+        console.log("Attaching admin listener for GameComms");
+        var callback = async (comms) => {
+            if (comms) {
+                await gameCommsChangedCallback(comms);
+            }
+        }
+        return this._onValue(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.GAME_COMMS_TO_ADMIN}`, callback);
+    }
+
+    /**
+     * **Admin only operation** - Send game comm to participant (from admin)
+     */
+    async sendGameCommToParticipant(roomId, uid, comm) {
+        try {
+            await this._setData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_LOBBY_LIST}/${uid}/${this.PATHS.LOBBY_USER_GAME_COMMS}/${this.PATHS.GAME_COMMS_TO_USER}/${comm.getCommId()}`, comm.toFireFormat());
+            console.log(`Sent comm ${comm.toInfo()} to user ${uid} in room ${roomId}`);
+            return true;
+        } catch (e) {
+            console.log(e);
+        }
+        return false;
+    }
+
+    /**
+     * **Admin only operation** - Sets a game comm as processed
+     */  
+    async setAdminGameCommAsProcessed(roomId, commId) {
+        try {
+            await this._updateData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.GAME_COMMS_TO_ADMIN}/${commId}`, {commState: GAME_COMM_STATE.PROCESSED});
+
+            console.log(`Marked comm {${commId}} as processed for admin in room ${roomId}`);
+            return true;
+        } catch (e) {
+            console.log(e);
+        }
+        return false;
+    }
+
+    /**
+     * **Participant only operation** - Listens to game comms (from admin) changes
+     */  
+    attachParticipantGameCommsListener(roomId, gameCommsChangedCallback) {
+        console.log("Attaching participant listener for GameComms");
+        var callback = async (comms) => {
+            if (comms) {
+                await gameCommsChangedCallback(comms);
+            }
+        }
+        return this._onValue(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_LOBBY_LIST}/${this.fireUser.uid}/${this.PATHS.LOBBY_USER_GAME_COMMS}/${this.PATHS.GAME_COMMS_TO_USER}`, callback);
+    }
+
+    /**
+     * **Participant only operation** - Send game comm to admin (from participant)
+     */
+    async sendGameCommToAdmin(roomId, comm) {
+        try {
+            await this._setData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.GAME_COMMS_TO_ADMIN}/${comm.getCommId()}`, comm.toFireFormat());
+            console.log(`Sent comm ${comm.toInfo()} to admin in room ${roomId}`);
+            return true;
+        } catch (e) {
+            console.log(e);
+        }
+        return false;
+    }
+
+    /**
+     * **Participant only operation** - Sets a game comm as processed
+     */  
+    async setParticipantGameCommAsProcessed(roomId, commId) {
+        try {
+            await this._updateData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_LOBBY_LIST}/${this.fireUser.uid}/${this.PATHS.LOBBY_USER_GAME_COMMS}/${this.PATHS.GAME_COMMS_TO_USER}/${commId}`, {commState: GAME_COMM_STATE.PROCESSED});
+
+            console.log(`Marked comm {${commId}} as processed for user ${this.fireUser.uid} in room ${roomId}`);
+            return true;
+        } catch (e) {
             console.log(e);
         }
         return false;
@@ -407,6 +571,19 @@ export class Fire {
     }
 
 
+    async _pushData(path = "", data) {
+        if(data === undefined || data === null) {
+            throw "No data present";
+        }
+
+        if(!this.fireUser) {
+            throw "No user present??";
+        }
+    
+        return push(child(this.dbRef, path), data).catch((error) => {
+            throw `(${error.code}) ${error.message}`;
+        });
+    }
 
 
     async _getData(path = "") {
@@ -432,5 +609,89 @@ export class Fire {
         await remove(child(this.dbRef, path)).catch((error) => {
             throw `(${error.code}) ${error.message}`;
         });
+    }
+}
+
+export const GAME_COMM_STATE = {
+    WAITING: "waiting",
+    PROCESSED: "processed"
+}
+
+export const GAME_COMM_TYPES = {
+    /**
+     * ADMIN to PARTICIPANT
+     * Use this comm type to initialize the first MCQ question and team codes.
+     */
+    INITIALIZE_MCQ_QUESTION_AND_CODES: "initializeMCQQuestionCodes",
+    /**
+     * PARTICIPANT to ADMIN
+     * Use this comm type to tell the admin initializing is ready
+     */
+    INITIALIZATION_DONE: "initializationDone",
+    /**
+     * ADMIN to PARTICIPANT
+     * Use this comm type to assign an MCQ question to a user
+     */
+    ASSIGN_MCQ_QUESTION: "assignMCQQuestion",
+    /**
+     * PARTICIPANT to ADMIN
+     * Use this comm type to verify the answer to an MCQ question
+     */
+    VERIFY_MCQ_ANSWER: "verifyMCQAnswer",
+    /**
+     * ADMIN to PARTICIPANT
+     * Use this comm type to report the status
+     */
+    REPORT_MCQ_ANSWER_VERIFICATION: "reportMCQAnswer",
+    /**
+     * PARTICIPANT to ADMIN
+     * Use this comm type to request a new MCQ question
+     */
+    REQUEST_MCQ_QUESTION: "requestMCQQuestion",
+}
+
+export class GameComm {
+    constructor(fromUserId, commType, commMessage = null) {
+        this.id = Date.now() + '_' + fromUserId;
+        this.commType = commType;
+        this.commMessage = commMessage;
+    }
+
+    getCommId() {
+        return this.id;
+    }
+
+    toFireFormat() {
+        let comm = {};
+        if(this.commType === GAME_COMM_TYPES.INITIALIZE_MCQ_QUESTION_AND_CODES) {
+            comm["data"] = {
+                question: this.commMessage.question,
+                team: this.commMessage.team,
+                teamCodes: this.commMessage.teamCodes,
+            }
+        } else if(this.commType === GAME_COMM_TYPES.INITIALIZATION_DONE) {
+            comm["data"] = {
+                fireUserUid: this.commMessage
+            }
+        } else if(this.commType === GAME_COMM_TYPES.VERIFY_MCQ_ANSWER) {
+            comm["data"] = {
+                fireUserUid: this.commMessage.fireUserUid,
+                answer: this.commMessage.answer,
+            }
+        } else if(this.commType === GAME_COMM_TYPES.REPORT_MCQ_ANSWER_VERIFICATION) {
+            comm["data"] = {
+                isCorrect: this.commMessage.isCorrect,
+                baronCode: this.commMessage.baronCode,
+            }
+        } else {
+            throw `Invalid comm type ${this.commType} for fire usage`;
+        }
+        comm["commType"] = this.commType;
+        comm["commState"] = GAME_COMM_STATE.WAITING;
+        return comm;
+    }
+
+    toInfo() {
+        return `{${this.id}, ${this.commType}}`;
     }
 }

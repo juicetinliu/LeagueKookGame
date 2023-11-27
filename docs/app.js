@@ -35,11 +35,11 @@ export class App {
 
     async start() {
         await this.fire.createAnonymousUser();
-        this.goToPage(this.pages.index, {}, {}, false);
+        await this.goToPage(this.pages.index, {}, {}, false);
         this.savePageStateToHistory(true);
     }
 
-    goToPage(page, setupArgs = {}, showArgs = {}, saveToHistory = true) {
+    async goToPage(page, setupArgs = {}, showArgs = {}, saveToHistory = true) {
         this.main.hide();
 
         Object.values(this.pages).forEach(page => {
@@ -47,21 +47,21 @@ export class App {
         });
         this.currentPage = page;
         if(saveToHistory) this.savePageStateToHistory();
-        this._renderCurrentPage(setupArgs, showArgs);
+        await this._renderCurrentPage(setupArgs, showArgs);
     }
 
 
-    _renderCurrentPage(setupPageArgs = {}, showPageArgs = {}) {
-        this._setupCurrentPage(setupPageArgs);
+    async _renderCurrentPage(setupPageArgs = {}, showPageArgs = {}) {
+        await this._setupCurrentPage(setupPageArgs);
         this._showCurrentPage(showPageArgs);
     }
 
-    _setupCurrentPage(pageArgs = {}) {
+    async _setupCurrentPage(pageArgs = {}) {
         if(!this.currentPage.createCompleted) {
             let currentPage = this.currentPage.create();
             this.mainWrapper.getElement().appendChild(currentPage);
         }
-        this.currentPage.setup(pageArgs);
+        await this.currentPage.setup(pageArgs);
     }
 
     _showCurrentPage(pageArgs = {}) {
@@ -84,12 +84,12 @@ export class App {
         }
     }
 
-    _loadPageFromHistory(event) {
+    async _loadPageFromHistory(event) {
         let state = event.state;
         if(state) {
             let currentPageId = state.currentPageId;
             let pageState = (state.pageState && Object.keys(state.pageState).length) ? state.pageState : null ;
-            this.goToPage(this.pages[currentPageId], pageState, {}, false);
+            await this.goToPage(this.pages[currentPageId], pageState, {}, false);
         }
     }
 

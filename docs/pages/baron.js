@@ -14,7 +14,8 @@ export class BaronGamePage extends Page {
         super.reset();
     }
 
-    setup(setupArgs) {
+    async setup(setupArgs) {
+        console.log("Setting up Baron game page");
         this.reset();
         this.setRoomParametersAndPageState(setupArgs);
 
@@ -24,7 +25,7 @@ export class BaronGamePage extends Page {
                 let adminPage = this.adminPage.create();
                 this.app.mainWrapper.getElement().appendChild(adminPage);
             }
-            this.adminPage.setup({});
+            await this.adminPage.setup(setupArgs);
             this.adminPage.hide();
         }
         super.setup();
@@ -47,5 +48,9 @@ export class BaronGamePage extends Page {
         
         super.create();
         return page;
+    }
+
+    show() {
+        super.show();
     }
 }

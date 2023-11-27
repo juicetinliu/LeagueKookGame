@@ -1,26 +1,23 @@
 import { documentCreateElement, Element } from "../components.js";
-import { GAME_STATES } from "../game.js";
 import { Page } from "../page.js";
 
 export class IndexPage extends Page {
     constructor(app) {
         super("index-page", app);
 
-        this.JOIN_ROOM_BUTTON_ID = "index-join-room-button";
-        this.CREATE_ROOM_BUTTON_ID = "index-create-room-button";
-        this.joinRoomButton = new Element("id", this.JOIN_ROOM_BUTTON_ID);
-        this.createRoomButton = new Element("id", this.CREATE_ROOM_BUTTON_ID);
+        this.joinRoomButton = new Element("id", "index-join-room-button");
+        this.createRoomButton = new Element("id", "index-create-room-button");
     }
 
     setup() {
         if(!this.setupCompleted){
-            this.joinRoomButton.addEventListener(["click"], () => {
-                this.app.goToPage(this.app.pages.joinRoom, {resetView: true});
+            this.joinRoomButton.addEventListener(["click"], async () => {
+                await this.app.goToPage(this.app.pages.joinRoom, {resetView: true});
             });
             this.createRoomButton.addEventListener(["click"], async () => {
                 let roomDetails = await this.app.fire.createRoom();
                 console.log("=== GOING TO NEW LOBBY ===");
-                this.app.goToPage(this.app.pages.lobby, roomDetails);
+                await this.app.goToPage(this.app.pages.lobby, roomDetails);
             });
         }
         // Autojoin a room with #<roomId> in url
@@ -53,20 +50,13 @@ export class JoinRoomPage extends Page {
     constructor(app) {
         super("join-room-page", app);
 
-        let ROOM_CODE_INPUT_ID = "join-room-room-code-input";
-        let ROOM_CODE_SUBMIT_BUTTON_ID = "join-room-room-code-submit-button";
-        let PASS_CODE_INPUT_ID = "join-room-pass-code-input";
-        let PASS_CODE_SUBMIT_BUTTON_ID = "join-room-pass-code-submit-button";
-        let ROOM_CODE_CONTENT_ROW = "join-room-room-content-row";
-        let PASS_CODE_CONTENT_ROW = "join-room-pass-content-row";
+        this.roomCodeInput = new Element("id", "join-room-room-code-input");
+        this.roomCodeSubmitButton = new Element("id", "join-room-room-code-submit-button");
+        this.roomCodeContentRow = new Element("id", "join-room-room-content-row");
 
-        this.roomCodeInput = new Element("id", ROOM_CODE_INPUT_ID);
-        this.roomCodeSubmitButton = new Element("id", ROOM_CODE_SUBMIT_BUTTON_ID);
-        this.roomCodeContentRow = new Element("id", ROOM_CODE_CONTENT_ROW);
-
-        this.passCodeInput = new Element("id", PASS_CODE_INPUT_ID);
-        this.passCodeSubmitButton = new Element("id", PASS_CODE_SUBMIT_BUTTON_ID);
-        this.passCodeContentRow = new Element("id", PASS_CODE_CONTENT_ROW);
+        this.passCodeInput = new Element("id", "join-room-pass-code-input");
+        this.passCodeSubmitButton = new Element("id", "join-room-pass-code-submit-button");
+        this.passCodeContentRow = new Element("id", "join-room-pass-content-row");
 
         this.roomId = null;
         this.roomPasscode = null
@@ -98,13 +88,14 @@ export class JoinRoomPage extends Page {
 
                         if(roomState) {
                             console.log("=== GOING TO EXISTING LOBBY ===");
-                            this.app.goToPage(this.app.pages.lobby, {
+                            await this.app.goToPage(this.app.pages.lobby, {
                                 roomId: roomId,
                                 roomPasscode: roomState ? roomState.passcode : roomPass,
                                 isAdmin: isRoomActive.isAdmin,
+                                isParticipant: isRoomActive.isParticipant,
                                 isRoomLocked: roomState ? roomState.isRoomLocked : false,
                                 isReady: isRoomActive.isReady ? isRoomActive.isReady : false,
-                                gameStarted: roomState.gameState === GAME_STATES.GAME
+                                gameState: roomState.gameState
                             });
                             return;
                         }
@@ -128,13 +119,14 @@ export class JoinRoomPage extends Page {
                         roomState = await this.app.fire.getRoomState(roomId);
                     }
                     console.log("=== GOING TO EXISTING LOBBY ===");
-                    this.app.goToPage(this.app.pages.lobby, {
+                    await this.app.goToPage(this.app.pages.lobby, {
                         roomId: roomId,
                         roomPasscode: roomState ? roomState.passcode : roomPass,
                         isAdmin: joinSucceded.isAdmin,
+                        isParticipant: joinSucceded.isParticipant,
                         isRoomLocked: roomState ? roomState.isRoomLocked : false,
                         isReady: joinSucceded.isReady ? joinSucceded.isReady : false,
-                        gameStarted: roomState ? roomState.gameState === GAME_STATES.GAME : false
+                        gameState: roomState ? roomState.gameState : (joinSucceded.gameState ? joinSucceded.gameState : null)
                     });
                     return;
                 } else {

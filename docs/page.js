@@ -20,6 +20,7 @@ export class Page extends Component {
     show() {
         //common page functions
         this.isShowing = true;
+        this.app.savePageStateToHistory(true);
         super.show();
     }
 

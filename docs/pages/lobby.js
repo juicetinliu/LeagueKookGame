@@ -8,38 +8,22 @@ export class LobbyPage extends Page {
 
         this.ROOM_INFO_ROOM_CODE_HEADER_TEXT = "Room ID:";
         this.ROOM_INFO_ROOM_PASSCODE_HEADER_TEXT = "Passcode:";
-
-        let ROOM_INFO_PANEL_ID = "lobby-room-info-panel";
-        let PARTICIPANTS_PANEL_ID = "lobby-participants-panel";
-        let ROOM_CONTROLS_PANEL_ID = "lobby-room-controls-panel";
-
-        let ROOM_INFO_USER_ROLE_ID = "lobby-room-info-user-role";
-        let ROOM_INFO_ROOM_CODE_ID = "lobby-room-info-room-code";
-        let ROOM_INFO_ROOM_PASSCODE_ID = "lobby-room-info-room-passcode";
-
-        let ROOM_START_BUTTON_ID = "lobby-room-controls-start-button";
-        let ROOM_CLOSE_BUTTON_ID = "lobby-room-controls-close-button";
-        let ROOM_READY_BUTTON_ID = "lobby-room-controls-ready-button";
-        let ROOM_LEAVE_BUTTON_ID = "lobby-room-controls-leave-button";
-        let ROOM_LOCK_TOGGLE_BUTTON_ID = "lobby-room-controls-lock-toggle-button";
-        let ROOM_SETTINGS_BUTTON_ID = "lobby-room-controls-settings-button";
-        let GO_TO_GAME_BUTTON_ID = "lobby-room-controls-go-to-game-button";
         
-        this.roomInfoPanel = new Element("id", ROOM_INFO_PANEL_ID);
-        this.roomParticipantsPanel = new Element("id", PARTICIPANTS_PANEL_ID);
-        this.roomControlsPanel = new Element("id", ROOM_CONTROLS_PANEL_ID);
+        this.roomInfoPanel = new Element("id", "lobby-room-info-panel");
+        this.roomParticipantsPanel = new Element("id", "lobby-participants-panel");
+        this.roomControlsPanel = new Element("id", "lobby-room-controls-panel");
 
-        this.roomInfoUserRole = new Element("id", ROOM_INFO_USER_ROLE_ID);
-        this.roomInfoRoomCode = new Element("id", ROOM_INFO_ROOM_CODE_ID);
-        this.roomInfoRoomPasscode = new Element("id", ROOM_INFO_ROOM_PASSCODE_ID);
+        this.roomInfoUserRole = new Element("id", "lobby-room-info-user-role");
+        this.roomInfoRoomCode = new Element("id", "lobby-room-info-room-code");
+        this.roomInfoRoomPasscode = new Element("id", "lobby-room-info-room-passcode");
 
-        this.roomControlsStartButton = new Element("id", ROOM_START_BUTTON_ID);
-        this.roomControlsCloseButton = new Element("id", ROOM_CLOSE_BUTTON_ID);
-        this.roomControlsReadyButton = new Element("id", ROOM_READY_BUTTON_ID);
-        this.roomControlsLeaveButton = new Element("id", ROOM_LEAVE_BUTTON_ID);
-        this.roomControlsLockToggleButton = new Element("id", ROOM_LOCK_TOGGLE_BUTTON_ID);
-        this.roomControlsSettingsButton = new Element("id", ROOM_SETTINGS_BUTTON_ID);
-        this.roomGoToGameButton = new Element("id", GO_TO_GAME_BUTTON_ID);
+        this.roomControlsStartButton = new Element("id", "lobby-room-controls-start-button");
+        this.roomControlsCloseButton = new Element("id", "lobby-room-controls-close-button");
+        this.roomControlsReadyButton = new Element("id", "lobby-room-controls-ready-button");
+        this.roomControlsLeaveButton = new Element("id", "lobby-room-controls-leave-button");
+        this.roomControlsLockToggleButton = new Element("id", "lobby-room-controls-lock-toggle-button");
+        this.roomControlsSettingsButton = new Element("id", "lobby-room-controls-settings-button");
+        this.roomGoToGameButton = new Element("id", "lobby-room-controls-go-to-game-button");
 
         this.reset();
     }
@@ -48,8 +32,10 @@ export class LobbyPage extends Page {
         this.roomId = null;
         this.roomPasscode = null;
         this.isAdmin = false;
+        this.isParticipant = false;
         this.isRoomLocked = false;
         this.isReady = false;
+        this.gameState = null;
         this.gameStarted = false;
         this.lobbyUserList = [];
         this.participantProfileCards = [];
@@ -61,9 +47,9 @@ export class LobbyPage extends Page {
             this.lobbyListListener(); //unsubscribes the listener.
             console.log("Unsubscribed previous LobbyList listener");
         }
-        if(this.gameStateListener) {
-            this.gameStateListener(); //unsubscribes the listener.
-            console.log("Unsubscribed previous GameState listener");
+        if(this.gameStartListener) {
+            this.gameStartListener(); //unsubscribes the listener.
+            console.log("Unsubscribed previous GameStart listener");
         }
         if(this.participantRoleSwitcher) {
             this.participantRoleSwitcher.delete();
@@ -72,11 +58,12 @@ export class LobbyPage extends Page {
         this.participantRoleSwitcher = null;
         this.waitListListener = null;
         this.lobbyListListener = null;
-        this.gameStateListener = null;
+        this.gameStartListener = null;
         super.reset();
     }
 
     setup(setupArgs) {
+        console.log("Setting up Lobby page");
         this.reset();
         this.setRoomParametersAndPageState(setupArgs);
         this.setInitialRoomPageElements();
@@ -85,7 +72,7 @@ export class LobbyPage extends Page {
 
         // Attach firebase listeners
         if(this.isAdmin) {
-            this.waitListListener = this.app.fire.attachAdminWaitListListener(this.roomId);
+            this.waitListListener = this.app.fire.attachAdminWaitListListener(this.roomId, this.gameState);
             this.attachLobbyListListener();
             if(!this.gameStarted) {
                 this.participantRoleSwitcher = new ParticipantRoleSwitcher(this, this.app);
@@ -93,30 +80,30 @@ export class LobbyPage extends Page {
                 this.participantRoleSwitcher.setup();
             }
         } else {
-            this.waitListListener = this.app.fire.attachParticipantWaitListListener(this.roomId, () => {
-                this.attachLobbyListListener();
-                if(this.waitListListener) {
-                    console.log("Unsubscribed WaitList Listener");
-                    this.waitListListener();
-                    this.waitListListener = null;
-                }
-            });
-            if(!this.gameStarted) {
-                this.gameStateListener = this.app.fire.attachParticipantGameStateListener(this.roomId, () => {
-                    console.log("=== GAME STARTED ===");
-                    this.gameStarted = true;
-                    this.pageState.gameStarted = this.gameStarted;
-                    this.app.savePageStateToHistory(true);
-                    this.goToGamePage();
-
-                    if(this.gameStateListener) {
-                        console.log("Unsubscribed GameState Listener");
-                        this.gameStateListener();
-                        this.gameStateListener = null;
+            this.roomControlsPanel.hide();
+            if(this.isParticipant) {
+                this.roomControlsPanel.show();
+            } else {
+                this.waitListListener = this.app.fire.attachParticipantWaitListListener(this.roomId, async () => {
+                    await this.updateParamsAfterJoiningLobbyFromWaitlist();
+                    this.attachLobbyListListener();
+                    if(this.waitListListener) {
+                        console.log("Unsubscribed WaitList Listener");
+                        this.waitListListener();
+                        this.roomControlsPanel.show();
+                        this.waitListListener = null;
                     }
                 });
+            }
+            if(!this.gameStarted) {
+                this.gameStartListener = this.app.fire.attachParticipantGameStartListener(this.roomId, async (newGameState) => {
+                    console.log("=== GAME STARTED ===");
+                    this.saveGameStateToPageState(newGameState);
+                    this.app.savePageStateToHistory(true);
+                    await this.goToGamePage();
+                });
             } else {
-                console.log("Game has already started, not attaching GameState listener");
+                console.log("Game has already started, not attaching GameStart listener");
             }
         }
 
@@ -127,18 +114,17 @@ export class LobbyPage extends Page {
             if(this.gameStarted) {
             } else {
                 this.roomControlsStartButton.addEventListener(["click"], async () => {
-                    await this.app.fire.startGame(this.roomId);
-                    this.gameStarted = true;
-                    this.pageState.gameStarted = this.gameStarted;
+                    let newGameState = await this.app.fire.initializeGame(this.roomId);
+                    this.saveGameStateToPageState(newGameState);
                     this.app.savePageStateToHistory(true);
-                    this.goToGamePage();
+                    await this.goToGamePage();
                 });
                 this.roomControlsLockToggleButton.addEventListener(["click"], async () => {
                     let newRoomLockState = !this.isRoomLocked;
                     if(await this.app.fire.setRoomLock(this.roomId, newRoomLockState)) {
                         this.setRoomLockButton(newRoomLockState);
+                        
                         this.isRoomLocked = newRoomLockState;
-
                         this.pageState.isRoomLocked = this.isRoomLocked;
                         this.app.savePageStateToHistory(true);
                     }
@@ -147,18 +133,21 @@ export class LobbyPage extends Page {
             this.roomControlsCloseButton.addEventListener(["click"], async () => {
                 await this.app.fire.closeRoom(this.roomId);
                 this.pageState = {};
-                this.app.goToPage(this.app.pages.index, {}, {}, false);
+                await this.app.goToPage(this.app.pages.index, {}, {}, false);
                 this.app.savePageStateToHistory(true);
             });
         } else {
+            if(this.isParticipant) {
+                this.attachLobbyListListener();
+            }
             if(this.gameStarted) {
             } else {
                 this.roomControlsReadyButton.addEventListener(["click"], async () => {
                     let newRoomReadyState = !this.isReady;
                     if(await this.app.fire.updateParticipantReady(this.roomId, newRoomReadyState)) {
                         this.setRoomReadyButton(newRoomReadyState);
+                        
                         this.isReady = newRoomReadyState;
-
                         this.pageState.isReady = this.isReady;
                         this.app.savePageStateToHistory(true);
                     }
@@ -168,33 +157,58 @@ export class LobbyPage extends Page {
                 await this.app.fire.leaveRoom(this.roomId);
                 this.reset();
                 this.updateRoomWhenParticipantsChange(null);
-                this.app.goToPage(this.app.pages.index, {}, {}, false);
+                await this.app.goToPage(this.app.pages.index, {}, {}, false);
                 this.app.savePageStateToHistory(true);
             });
         }
         if(this.gameStarted) {
-            this.roomGoToGameButton.addEventListener(["click"], () => {
-                this.goToGamePage();
+            this.roomGoToGameButton.addEventListener(["click"], async () => {
+                await this.goToGamePage();
             })
         }
         super.setup();
     }
 
-    goToGamePage() {
+    saveGameStateToPageState(newGameState) {
+        this.gameState = newGameState;
+        this.gameStarted = GameUtils.hasGameStarted(newGameState);
+
+        this.pageState.gameState = this.gameState;
+        this.pageState.gameStarted = this.gameStarted;
+    }
+
+    async goToGamePage() {
         let role = this.getCurrentUserGameRole();
         let adminSetupArgs = {isAdmin: this.isAdmin};
+        let mcqSetupArgs = {roomId: this.roomId}
         if(this.isAdmin) {
             adminSetupArgs["lobbyUserList"] = this.lobbyUserList;
+            adminSetupArgs["roomId"] = this.roomId;
         }
+        console.log("Resetting lobby");
+        this.reset();
+        console.log("=== GOING TO GAME ===");
         if(role === GAME_ROLES.ADMIN) {
-            this.app.goToPage(this.app.pages.adminGame, adminSetupArgs);
+            await this.app.goToPage(this.app.pages.adminGame, adminSetupArgs);
         } else if (role === GAME_ROLES.BARON) {
-            this.app.goToPage(this.app.pages.baronGame, adminSetupArgs);
+            await this.app.goToPage(this.app.pages.baronGame, adminSetupArgs);
         } else if (role === GAME_ROLES.MCQ) {
-            this.app.goToPage(this.app.pages.mcqGame);
+            await this.app.goToPage(this.app.pages.mcqGame, mcqSetupArgs);
         } else {
             console.log(`Invalid role: ${role}. Not going into game`);
         }
+    }
+
+    async updateParamsAfterJoiningLobbyFromWaitlist() {
+        console.log("Joining lobby from waitlist and updating params");
+        let fireGameState = await this.app.fire.getRoomGameState(this.roomId);
+        this.saveGameStateToPageState(fireGameState);
+        
+        this.isParticipant = true;
+        this.pageState.isParticipant = this.isParticipant;
+
+        this.setup(this.pageState);
+        this.app.savePageStateToHistory(true);
     }
 
     getCurrentUserGameRole() {
@@ -248,15 +262,19 @@ export class LobbyPage extends Page {
         this.roomId = setupArgs.roomId;
         this.roomPasscode = setupArgs.roomPasscode;
         this.isAdmin = setupArgs.isAdmin;
+        this.isParticipant = setupArgs.isParticipant;
         this.isRoomLocked = setupArgs.isRoomLocked;
         this.isReady = setupArgs.isReady;
-        this.gameStarted = setupArgs.gameStarted;
+        this.gameState = setupArgs.gameState;
+        this.gameStarted = GameUtils.hasGameStarted(setupArgs.gameState);
 
         this.pageState.roomId = this.roomId;
         this.pageState.roomPasscode = this.roomPasscode;
         this.pageState.isAdmin = this.isAdmin;
+        this.pageState.isParticipant = this.isParticipant;
         this.pageState.isRoomLocked = this.isRoomLocked;
         this.pageState.isReady = this.isReady;
+        this.pageState.gameState = this.gameState;
         this.pageState.gameStarted = this.gameStarted;
     }
 
@@ -278,7 +296,7 @@ export class LobbyPage extends Page {
     createWaitingRoomContent() {
         return `
             <div id="lobby-room-waiting-room-content" class="v vh-c hv-c">
-                Waiting to join room...
+                ${this.gameStarted ? "Game already started, please wait...": "Waiting to join room..."}
                 <img id="lobby-room-waiting-room-loader" src="assets/ornn/ornn.gif"></img>
             </div>
         `;
@@ -292,7 +310,7 @@ export class LobbyPage extends Page {
             Object.entries(participants).forEach(participantInfo => {
                 let uid = participantInfo[0];
                 let participantData = participantInfo[1];
-                this.lobbyUserList.push(new User(uid, participantData.isReady, participantData.role, participantData.roleImgCode));
+                this.lobbyUserList.push(new FireUser(uid, participantData.isReady, participantData.role, participantData.roleImgCode));
             });
         }
         this.lobbyUserList.forEach(user => {
@@ -334,7 +352,6 @@ export class LobbyPage extends Page {
     }
 
     show() {
-        this.app.savePageStateToHistory(true);
         super.show();
     }
 
@@ -400,7 +417,7 @@ export class LobbyPage extends Page {
     }
 }
 
-class User {
+class FireUser {
     constructor(uid, isReady, role, roleImgCode) {
         this.uid = uid;
         this.isReady = isReady;
@@ -482,12 +499,9 @@ class ParticipantRoleSwitcher extends Component {
 
         this.lightBox = new Element("id", this.label+"-lightbox");
 
-        this.PARTICIPANT_ROLE_SWITCHER_CONTENT_ID = "participant-role-switcher-content";
-        this.ROLE_SELECTION_OPTION_CLASS = "role-switcher-selection-option";
+        this.content = new Element("id", "participant-role-switcher-content");
 
-        this.content = new Element("id", this.PARTICIPANT_ROLE_SWITCHER_CONTENT_ID);
-
-        this.roleOptions = new Element("class", this.ROLE_SELECTION_OPTION_CLASS);
+        this.roleOptions = new Element("class", "role-switcher-selection-option");
 
         this.selectedUid = null;
         this.selectedRole = null;
@@ -538,7 +552,7 @@ class ParticipantRoleSwitcher extends Component {
         let profileImgSrc = ProfileUtils.generateProfileImageFromCode(PROFILE_IMAGES_CODES[role][0]);
         let roleString = GameUtils.convertRoleToDisplayString(role);
         return `
-            <div data-chosen-role="${role}" class="participant-profile-avatar role-switcher-selection-option ${selectedRole === role ? "this-role" : ""}">
+            <div data-chosen-role="${role}" class="participant-profile-avatar ${this.roleOptions.label} ${selectedRole === role ? "this-role" : ""}">
                 <div class="participant-profile-role-hover">
                     ${roleString}
                 </div>
