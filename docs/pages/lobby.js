@@ -583,7 +583,7 @@ class ParticipantRoleSwitcher extends Component {
                     <div id="participant-role-switcher-header">
                         Switch roles
                     </div>
-                    <div id="${this.PARTICIPANT_ROLE_SWITCHER_CONTENT_ID}" class="h hv-c vh-c">
+                    <div id="${this.content.label}" class="h hv-c vh-c">
                         ${this.createRoleSelectionDivs()}
                     </div>
                 </div>
