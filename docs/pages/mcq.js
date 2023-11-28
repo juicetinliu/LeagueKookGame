@@ -1,8 +1,9 @@
 import { Page } from "../page.js";
 import { Element, documentCreateElement } from "../components.js";
 import { GAME_COMM_STATE, GAME_COMM_TYPES, GameComm } from "../fire.js";
-import { GameUtils } from "../game.js";
+import { GameConstants, GameUtils } from "../game.js";
 import { FireMCQQuestion, MCQ_ANSWER } from "../question.js";
+import { ONE_SECOND } from "../util.js";
 
 // I've decided to make the team code/answer validation on client side (this simplifies a LOT of comms). Of course this is less secure, but hey this is a game meant to be played with people in the same room, so no one should be trying to cheat anyways :)
 export class MCQGamePage extends Page {
@@ -13,6 +14,9 @@ export class MCQGamePage extends Page {
         this.questionContent = new Element("id", "mcq-game-page-question-content");
         this.answerOptions = new Element("class", "mcq-answer-option");
 
+        this.moveToNextQuestionButton = new Element("id", "mcq-move-to-next-question");
+        this.lockoutTimerText = new Element("id", "mcq-lockout-timer-text");
+        this.answerWindowTimerText = new Element("id", "mcq-answer-window-timer-text");
 
         this.reset();
     }
@@ -24,6 +28,18 @@ export class MCQGamePage extends Page {
         this.assignedTeam = null;
         this.teamCodes = null;
         this.previousGameState = null;
+
+        this.questionAnswerTimerCounter = GameConstants.questionAnswerWindowDuration;
+        if(this.questionAnswerTimerInterval) {
+            clearInterval(this.questionAnswerTimerInterval);
+        } 
+        this.questionAnswerTimerInterval = null;
+        this.questionLockoutTimerCounter = GameConstants.questionWrongLockoutDuration;
+        if(this.questionLockoutTimerInterval) {
+            clearInterval(this.questionLockoutTimerInterval);
+        } 
+        this.questionLockoutTimerInterval = null;
+
         if(this.participantCommsListener) {
             this.participantCommsListener(); //unsubscribes the listener.
             console.log("Unsubscribed previous participant GameComms listener");
@@ -53,7 +69,7 @@ export class MCQGamePage extends Page {
         this.gameStateListener = this.app.fire.attachGameStateListener(this.roomId, (gameState) => {
             this.previousGameState = gameState;
             if(GameUtils.isGameInProgress(gameState) && this.assignedQuestion !== null && this.assignedTeam !== null) {
-                this.showQuestionContent();
+                this.showQuestionContent(true);
             }
         });
         
@@ -74,7 +90,7 @@ export class MCQGamePage extends Page {
             let comm = new GameComm(this.app.fire.fireUser.uid, GAME_COMM_TYPES.INITIALIZATION_DONE, this.app.fire.fireUser.uid);
             await this.app.fire.sendGameCommToAdmin(this.roomId, comm);
         } else if(gameComm.commType === GAME_COMM_TYPES.REPORT_MCQ_ANSWER_VERIFICATION) {
-            console.log(gameComm.data);
+            this.proceedToQuestionAnsweredView(gameComm.data.isCorrect, gameComm.data.baronCode);
         } else {
             console.log(`No MCQ action done for comm type ${this.commType}`);
             return;
@@ -92,12 +108,20 @@ export class MCQGamePage extends Page {
         this.teamCodes = teamCodes;
     }
 
-    setAssignedQuestionAndTeam(assignedQuestion, assignedTeam, isInitialization = false) {
+    setAssignedQuestionAndTeam(assignedQuestion = null, assignedTeam = null, isInitialization = false) {
         this.showLoaderContent();
 
-        console.log(`Setting question ${assignedQuestion.id} for team ${assignedTeam}`)
-        this.assignedQuestion = assignedQuestion;
-        this.assignedTeam = assignedTeam;
+        let isNewQuestion = true;
+        if(!assignedQuestion && !assignedTeam) {
+            isNewQuestion = false;
+            console.log("Showing previous question again");
+        } else { 
+            console.log(`Setting question ${assignedQuestion.id} for team ${assignedTeam}`)
+            this.assignedQuestion = assignedQuestion;
+            this.assignedTeam = assignedTeam;
+
+            this.questionAnswerTimerCounter = GameConstants.questionAnswerWindowDuration;
+        }
         
         this.questionContent.getElement().innerHTML = this.createQuestionContent();
 
@@ -109,7 +133,7 @@ export class MCQGamePage extends Page {
             await this.app.fire.sendGameCommToAdmin(this.roomId, comm);
         });
 
-        if(!isInitialization || GameUtils.isGameInProgress(this.previousGameState)) this.showQuestionContent();
+        if(!isInitialization || GameUtils.isGameInProgress(this.previousGameState)) this.showQuestionContent(isNewQuestion);
     }
 
     create() {        
@@ -127,19 +151,116 @@ export class MCQGamePage extends Page {
         return page;
     }
 
+    proceedToQuestionAnsweredView(isCorrect, baronCode) {
+        this.showLoaderContent();
+        this.questionContent.getElement().innerHTML = this.createQuestionAnsweredContent(isCorrect, baronCode);
+        if(!isCorrect) {
+            this.startQuestionLockoutTimer();
+        } else {
+            clearInterval(this.questionAnswerTimerInterval);
+            this.questionAnswerTimerInterval = null;
+            
+            this.questionAnswerTimerCounter = GameConstants.questionAnswerWindowDuration;
+
+            //setup button listener for close
+        }
+        this.showQuestionContent(false);
+    }
+
+    startQuestionAnswerTimer() {
+        this.questionAnswerTimerInterval = setInterval(() => {
+            this.questionAnswerTimerCounter -= ONE_SECOND;
+            if(this.answerWindowTimerText.exists()) {
+                this.answerWindowTimerText.getElement().innerHTML = this.questionAnswerTimerCounter / ONE_SECOND;
+            }
+
+            if(this.questionAnswerTimerCounter <= 0) {
+                clearInterval(this.questionAnswerTimerInterval);
+                this.questionAnswerTimerInterval = null;
+                
+                this.questionAnswerTimerCounter = GameConstants.questionAnswerWindowDuration;
+                //request new question!!
+                return;
+            }
+        }, ONE_SECOND);
+    }
+
+    startQuestionLockoutTimer() {
+        this.questionLockoutTimerInterval = setInterval(() => {
+            this.questionLockoutTimerCounter -= ONE_SECOND;
+            if(this.lockoutTimerText.exists()) {
+                this.lockoutTimerText.getElement().innerHTML = this.questionLockoutTimerCounter / ONE_SECOND;
+            }
+            
+            if(this.questionLockoutTimerCounter <= 0) {
+                clearInterval(this.questionLockoutTimerInterval);
+                this.questionLockoutTimerInterval = null;
+
+                this.questionLockoutTimerCounter = GameConstants.questionWrongLockoutDuration;
+                this.setAssignedQuestionAndTeam();
+                return;
+            }
+        }, ONE_SECOND);
+    }
+
+
+
+    createQuestionAnsweredContent(isCorrect, baronCode) {
+        if(isCorrect) {
+            return `
+                <div class="h hv-c vh-c">
+                    Congrats that's the correct answer!
+                </div>
+                <div class="h hv-c vh-c">
+                    Here's the baron attack code: ${baronCode}
+                </div>
+                <div class="h hv-c vh-c">
+                    It will expire 5 mins from NOW, so use it wisely!
+                </div>
+                <div class="h hv-c vh-c">
+                    Close this message once you've memorized the code :D
+                </div>
+                <div class="h hv-c vh-c">
+                    <button id=${this.moveToNextQuestionButton.label}>
+                        Close
+                    </button>
+                </div>
+            `;
+        } else {
+            return `
+                <div class="h hv-c vh-c">
+                    Sorry that's the wrong answer.
+                    </div>
+                <div class="h hv-c vh-c">
+                    You're timed out for 1 minute until you can try again.
+                </div>
+                <div class="h hv-c vh-c">
+                    <div id=${this.lockoutTimerText.label}>
+                        ${GameConstants.questionWrongLockoutDuration / ONE_SECOND}
+                    </div>
+                </div>
+            `;
+        }
+    }
+
     createQuestionContent() {
         return `
             <div class="h hv-c vh-c">
                 ${this.assignedQuestion.title}
             </div>
-            <div class="h hv-c vh-c">
-                ${this.assignedQuestion.imageUrl}
+            <div id="mcq-game-page-question-image" class="h hv-c vh-c">
+                <img src="${this.assignedQuestion.imageUrl}">
             </div>
             <div class="h hv-c vh-c">
                 ${this.createAnswerOptions()}
             </div>
             <div class="h hv-c vh-c">
                 Answer is (${this.assignedQuestion.answer}); Team is (${this.assignedTeam}; TeamCodes are (${Object.entries(this.teamCodes)}))
+            </div>
+            <div class="h hv-c vh-c">
+                <div id=${this.answerWindowTimerText.label}>
+                    ${GameConstants.questionAnswerWindowDuration / ONE_SECOND}
+                </div>
             </div>
         `;
     }
@@ -154,7 +275,10 @@ export class MCQGamePage extends Page {
         }).join("");
     }
 
-    showQuestionContent() {
+    showQuestionContent(isNewQuestion) {
+        if(isNewQuestion) {
+            this.startQuestionAnswerTimer();
+        }
         this.questionContent.show();
         this.loadingContent.hide();
     }

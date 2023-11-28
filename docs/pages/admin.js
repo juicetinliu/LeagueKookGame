@@ -1,6 +1,6 @@
 import { Page } from "../page.js";
 import { documentCreateElement } from "../components.js";
-import { GAME_ROLES, LeagueKookGame, TEAM } from "../game.js";
+import { GAME_ROLES, GameConstants, LeagueKookGame, TEAM } from "../game.js";
 import { GAME_COMM_STATE, GAME_COMM_TYPES, GameComm } from "../fire.js";
 
 export class AdminGamePage extends Page {
@@ -80,11 +80,15 @@ export class AdminGamePage extends Page {
                 let isCorrect = false;
                 if(mcqPlayer.getAssignedQuestion().answer === answer) {
                     isCorrect = true;
-                    baronCode = this.generateBaronCode();
+                    baronCode = this.game.generateBaronCode();
                 }
 
                 let comm = new GameComm(GAME_ROLES.ADMIN, GAME_COMM_TYPES.REPORT_MCQ_ANSWER_VERIFICATION, {isCorrect: isCorrect, baronCode: baronCode});
                 this.app.fire.sendGameCommToParticipant(this.roomId, fireUserUid, comm);
+
+                if(isCorrect) {
+                    this.registerBaronCodeWithBaron(baronCode, mcqPlayer);
+                }
             }
         } else {
             console.log(`No Admin action done for comm type ${this.commType}`);
@@ -93,12 +97,20 @@ export class AdminGamePage extends Page {
         this.app.fire.setAdminGameCommAsProcessed(this.roomId, gameCommId);
     }
 
-    generateBaronCode() {
-        // TODO 
-        // generate baron code
-        // store baron code in fire
-        // return baron code
-        return "1234"
+    async registerBaronCodeWithBaron(baronCode, mcqPlayer) {
+        let team = mcqPlayer.getAssignedTeam();
+        let expiryTime = Date.now() + GameConstants.baronCodeActiveDuration;
+
+        let baronCodePackage = {
+            baronCode: baronCode, 
+            team: team,
+            expiryTime: expiryTime,
+        }
+        
+        this.game.addToBaronCodeHistory(baronCodePackage);
+
+        let comm = new GameComm(GAME_ROLES.ADMIN, GAME_COMM_TYPES.REGISTER_NEW_BARON_CODE, baronCodePackage);
+        await this.app.fire.sendGameCommToParticipant(this.roomId, this.game.getBaronPlayer().fireUser.uid, comm);
     }
 
     fetchMCQPlayerForFireUser(fireUserUid) {

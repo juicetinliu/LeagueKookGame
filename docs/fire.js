@@ -619,35 +619,40 @@ export const GAME_COMM_STATE = {
 
 export const GAME_COMM_TYPES = {
     /**
-     * ADMIN to PARTICIPANT
+     * ADMIN to MCQ
      * Use this comm type to initialize the first MCQ question and team codes.
      */
     INITIALIZE_MCQ_QUESTION_AND_CODES: "initializeMCQQuestionCodes",
     /**
-     * PARTICIPANT to ADMIN
+     * MCQ to ADMIN
      * Use this comm type to tell the admin initializing is ready
      */
     INITIALIZATION_DONE: "initializationDone",
     /**
-     * ADMIN to PARTICIPANT
-     * Use this comm type to assign an MCQ question to a user
-     */
-    ASSIGN_MCQ_QUESTION: "assignMCQQuestion",
-    /**
-     * PARTICIPANT to ADMIN
+     * MCQ to ADMIN
      * Use this comm type to verify the answer to an MCQ question
      */
     VERIFY_MCQ_ANSWER: "verifyMCQAnswer",
     /**
-     * ADMIN to PARTICIPANT
+     * ADMIN to MCQ
      * Use this comm type to report the status
      */
     REPORT_MCQ_ANSWER_VERIFICATION: "reportMCQAnswer",
     /**
-     * PARTICIPANT to ADMIN
+     * MCQ to ADMIN
      * Use this comm type to request a new MCQ question
      */
     REQUEST_MCQ_QUESTION: "requestMCQQuestion",
+    /**
+     * ADMIN to MCQ
+     * Use this comm type to assign an MCQ question to a user
+     */
+    ASSIGN_MCQ_QUESTION: "assignMCQQuestion",
+    /**
+     * ADMIN to BARON
+     * Use this comm type to register a new baron attack code
+     */
+    REGISTER_NEW_BARON_CODE: "registerBaronCode",
 }
 
 export class GameComm {
@@ -682,6 +687,12 @@ export class GameComm {
             comm["data"] = {
                 isCorrect: this.commMessage.isCorrect,
                 baronCode: this.commMessage.baronCode,
+            }
+        } else if(this.commType === GAME_COMM_TYPES.REGISTER_NEW_BARON_CODE) {
+            comm["data"] = {
+                baronCode: this.commMessage.baronCode,
+                team: this.commMessage.team,
+                expiryTime: this.commMessage.expiryTime,
             }
         } else {
             throw `Invalid comm type ${this.commType} for fire usage`;

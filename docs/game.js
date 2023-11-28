@@ -49,7 +49,7 @@
  */
 
 import { FireMCQQuestion } from "./question.js";
-import { generateRandomString, popRandomElementFromArray } from "./util.js";
+import { ONE_SECOND, generateRandomString, popRandomElementFromArray } from "./util.js";
 
 export const WAIT_LIST_STATES = {
     /**
@@ -80,7 +80,7 @@ const RoomConstants = {
     minMCQRoleCount: 2,
 
 
-    roomActiveDuration: 3 * 60 * 60 * 1000, //3 hours until a room is considered "inactive"
+    roomActiveDuration: 3 * 60 * 60 * ONE_SECOND, //3 hours until a room is considered "inactive"
 }
 
 export const RoomUtils = {
@@ -125,6 +125,9 @@ export const GameUtils = {
     isLobbyOpen: (gameState) => { 
         return gameState === GAME_STATES.LOBBY;
     },
+    generateBaronCode: () => {
+        return generateRandomString(GameConstants.baronCodeLength, GameConstants.baronCodeCharacterPool);
+    },
 }
 
 export const GAME_ROLES = {
@@ -150,9 +153,16 @@ export const PROFILE_IMAGES_CODES = {
     mcq: ["778", "779", "780"]
 }
 
-const DefaultGameConstants = {
-    minimumTeamComputers: RoomConstants.minMCQRoleCount/2,
-    randomSequenceMultiplier: 2,
+export const GameConstants = {
+    defaultMinimumTeamComputers: RoomConstants.minMCQRoleCount/2,
+    defaultRandomSequenceMultiplier: 2,
+
+    baronCodeLength: 4,
+    baronCodeCharacterPool: 'abcdefghijklmnopqrstuvwxyz0123456789',
+    baronCodeActiveDuration: 5 * 60 * ONE_SECOND, // 5 minutes until baron code expires
+
+    questionAnswerWindowDuration: 5 * 60 * ONE_SECOND, // 5 minutes before a question expires
+    questionWrongLockoutDuration: 1 * 60 * ONE_SECOND, // 1 minute before a question can be retried
 }
 
 export const TEAM = {
@@ -233,15 +243,21 @@ export class LeagueKookGame {
         this.furtherTeamAssignmentsPool = [];
         this.questions = [];
 
+        //Questionbank images urls are hardcoded (not stored/uploadable)
+        this.questionBankId = "0wTG0Gewp2Xw2syg6KdQfnDnknb2_1700902705409";
+
         this.redTeamQuestions = [];
         this.blueTeamQuestions = [];
 
-        this.minTeamComputers = DefaultGameConstants.minimumTeamComputers;
-        this.randomSeqMultiplier = DefaultGameConstants.randomSequenceMultiplier;
+        this.baronCodeHistory = [];
+
+        this.minTeamComputers = GameConstants.defaultMinimumTeamComputers;
+        this.randomSeqMultiplier = GameConstants.defaultRandomSequenceMultiplier;
     }
 
     setInitialParams(setupArgs) {
         this.lobbyUserList = setupArgs.lobbyUserList;
+        this.roomId = setupArgs.roomId;
     }
 
     async initialize(setupArgs) {
@@ -262,7 +278,7 @@ export class LeagueKookGame {
         this.assignTeamsToUnassignedMCQs();
 
         //TODO: MAKE THIS NOT A HARDCODED QUESTION BANK FOR MCQS
-        let questionMap = await this.app.fire.getQuestionBank("0wTG0Gewp2Xw2syg6KdQfnDnknb2_1700902705409");
+        let questionMap = await this.app.fire.getQuestionBank(this.questionBankId);
         console.log(questionMap);
         Object.entries(questionMap).forEach(questionInfo => {
             let questionId = questionInfo[0];
@@ -318,8 +334,25 @@ export class LeagueKookGame {
     getMCQPlayerList() {
         return this.mcqPlayerList;
     }
+
     getBaronPlayer() {
         return this.baronPlayer;
+    }
+
+    generateBaronCode() {
+        let baronCode = GameUtils.generateBaronCode();
+        console.log(`Generated baron code: ${baronCode}`)
+        while (this.baronCodeHistory.some(log => {return log.baronCode === baronCode})) {
+            baronCode = GameUtils.generateBaronCode();
+            console.log(`Regenerated baron code: ${baronCode}`);
+        }
+        return baronCode;
+    }
+
+    addToBaronCodeHistory(baronCodePackage) {
+        if(!baronCodePackage.baronCode || !baronCodePackage.team || !baronCodePackage.expiryTime) throw `Baron code package missing valid arguments: ${[baronCodePackage.baronCode, baronCodePackage.team, baronCodePackage.expiryTime]}`;
+
+        this.baronCodeHistory.push(baronCodePackage);
     }
 
     generateTeamAssignmentsPool() {
