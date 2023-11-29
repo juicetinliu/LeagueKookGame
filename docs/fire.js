@@ -208,6 +208,14 @@ export class Fire {
     }
 
     /**
+     * **Admin only operation** - ends the game
+     */
+    async endGame(roomId) {
+        console.log("=== ENDING GAME ===");
+        await this._setGameState(roomId, GAME_STATES.LOBBY);
+    }
+
+    /**
      * **Admin only operation** - sets the game state
      */    
     async _setGameState(roomId, gameState) {
@@ -635,7 +643,7 @@ export const GAME_COMM_TYPES = {
     VERIFY_MCQ_ANSWER: "verifyMCQAnswer",
     /**
      * ADMIN to MCQ
-     * Use this comm type to report the status
+     * Use this comm type to report the status of answer an MCQ question
      */
     REPORT_MCQ_ANSWER_VERIFICATION: "reportMCQAnswer",
     /**
@@ -649,10 +657,15 @@ export const GAME_COMM_TYPES = {
      */
     ASSIGN_MCQ_QUESTION: "assignMCQQuestion",
     /**
-     * ADMIN to BARON
-     * Use this comm type to register a new baron attack code
+     * BARON to ADMIN
+     * Use this comm type to verify a baron attack code
      */
-    REGISTER_NEW_BARON_CODE: "registerBaronCode",
+    VERIFY_BARON_CODE: "verifyBaronCode",
+    /**
+     * ADMIN to BARON
+     * Use this comm type to report a baron attack code status
+     */
+    REPORT_BARON_CODE: "reportBaronCode",
 }
 
 export class GameComm {
@@ -688,11 +701,24 @@ export class GameComm {
                 isCorrect: this.commMessage.isCorrect,
                 baronCode: this.commMessage.baronCode,
             }
-        } else if(this.commType === GAME_COMM_TYPES.REGISTER_NEW_BARON_CODE) {
+        } else if(this.commType === GAME_COMM_TYPES.REQUEST_MCQ_QUESTION) {
+            comm["data"] = {
+                fireUserUid: this.commMessage,
+            }
+        } else if(this.commType === GAME_COMM_TYPES.ASSIGN_MCQ_QUESTION) {
+            comm["data"] = {
+                question: this.commMessage.question,
+                team: this.commMessage.team,
+            }
+        } else if(this.commType === GAME_COMM_TYPES.VERIFY_BARON_CODE) {
             comm["data"] = {
                 baronCode: this.commMessage.baronCode,
+            }
+        } else if(this.commType === GAME_COMM_TYPES.REPORT_BARON_CODE) {
+            comm["data"] = {
+                isValid: this.commMessage.isValid,
+                damageAmount: this.commMessage.damageAmount,
                 team: this.commMessage.team,
-                expiryTime: this.commMessage.expiryTime,
             }
         } else {
             throw `Invalid comm type ${this.commType} for fire usage`;

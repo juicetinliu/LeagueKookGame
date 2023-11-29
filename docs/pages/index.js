@@ -148,13 +148,13 @@ export class JoinRoomPage extends Page {
         page.innerHTML = `
             <div id="join-room-input-panel" class="v vh-c hv-c panel">
                 <div id="${this.roomCodeContentRow.label}" class="h hv-l vh-c">
-                    <input id="${this.roomCodeInput.label}">
+                    <input id="${this.roomCodeInput.label}" placeholder="Enter Room ID">
                     <button id="${this.roomCodeSubmitButton.label}">
                         Join Room
                     </button>
                 </div>
                 <div id="${this.passCodeContentRow.label}" class="h hv-l vh-c">
-                    <input id="${this.passCodeInput.label}">
+                    <input id="${this.passCodeInput.label}" placeholder="Enter Room Passcode">
                     <button id="${this.passCodeSubmitButton.label}">
                         Submit Passcode
                     </button>

@@ -5,13 +5,48 @@ import { GameConstants, GameUtils } from "../game.js";
 import { FireMCQQuestion, MCQ_ANSWER } from "../question.js";
 import { ONE_SECOND } from "../util.js";
 
-// I've decided to make the team code/answer validation on client side (this simplifies a LOT of comms). Of course this is less secure, but hey this is a game meant to be played with people in the same room, so no one should be trying to cheat anyways :)
+/** 
+ * I've decided to make the team code validation (before allowing mcq answering) on client side (this simplifies a LOT of comms and improves latency!). Of course this is less secure, but hey this is a game meant to be played with people in the same room, so no one should be trying to cheat anyways :)
+ * Deets:
+ *  - Ideal flow:
+ *      - ADMIN -> MCQ: Send assigned MCQ team
+ *      -          MCQ: Build teamCode page and team code input
+ *      - MCQ -> ADMIN: Send team code for verification
+ *      -        ADMIN: Verify team code
+ *      - ADMIN -> MCQ: (Assume code correct) Send assigned MCQ question
+ *      -          MCQ: Build question page
+ *      - MCQ -> ADMIN: Send MCQ answer for verification
+ *      -        ADMIN: Verify answer
+ *      - ADMIN -> MCQ: (Assume answer correct) Send baron attack code
+ *      -          MCQ: Display baron attack code and wait for dismissal
+ *      - MCQ -> ADMIN: Request new Question/Team
+ *  - Notice this ideal flow has 6 network calls. 
+ *      - Pros: secure – MCQ doesn't get any secure info
+ *      - Cons: latency – especially on the team code verification (team code doesn't change throughout the game; so it's a little redundant to verify each time on the ADMIN side)
+ * 
+ * - Implemented (simplified flow):
+ *      - ADMIN -> MCQ: Send assigned MCQ team, question, and team codes
+ *      -          MCQ: Build teamCode page and team code input
+ *      -          MCQ: Verify team code
+ *      -          MCQ: Build question page
+ *      - MCQ -> ADMIN: Send MCQ answer for verification
+ *      -        ADMIN: Verify answer
+ *      - ADMIN -> MCQ: (Assume answer correct) Send baron attack code
+ *      -          MCQ: Display baron attack code and wait for dismissal
+ *      - MCQ -> ADMIN: Request new Question/Team
+ *  - This simplifies things quite a bit!!!
+ *      - Theoretically we COULD even have the MCQ handle the answer verification/baron code generation, but this actually makes things more complicated since the generated baron code would need to still be sent to the ADMIN computers for storage/verification. Having the ADMIN generate the baron code allows for a single point of storage (and for BARON computer to later verify with the ADMIN)
+ */
 export class MCQGamePage extends Page {
     constructor(app) {
         super("mcq-game-page", app);
         this.pageWrapper = new Element("id", "mcq-game-page-wrapper");
         this.loadingContent = new Element("id", "mcq-game-page-loading-content");
         this.questionContent = new Element("id", "mcq-game-page-question-content");
+
+        this.teamCodeInput = new Element("id", "mcq-team-code-input");
+        this.teamCodeSubmitButton = new Element("id", "mcq-team-code-submit-button");
+
         this.answerOptions = new Element("class", "mcq-answer-option");
 
         this.moveToNextQuestionButton = new Element("id", "mcq-move-to-next-question");
@@ -69,7 +104,13 @@ export class MCQGamePage extends Page {
         this.gameStateListener = this.app.fire.attachGameStateListener(this.roomId, (gameState) => {
             this.previousGameState = gameState;
             if(GameUtils.isGameInProgress(gameState) && this.assignedQuestion !== null && this.assignedTeam !== null) {
-                this.showQuestionContent(true);
+                this.showQuestionContent();
+            } else if (GameUtils.hasGameEnded(gameState)) {
+                console.log("=== GAME ENDED ===")
+                this.reset();
+                this.showLoaderContent(true);
+                //Go back to lobby
+
             }
         });
         
@@ -85,12 +126,21 @@ export class MCQGamePage extends Page {
             let teamCodes = gameComm.data.teamCodes;
             let assignedQuestion = FireMCQQuestion.createFromFire(commQuestion.id, commQuestion);
             this.setTeamCodes(teamCodes);
-            this.setAssignedQuestionAndTeam(assignedQuestion, assignedTeam, true);
+            this.setAssignedQuestionAndTeam(assignedQuestion, assignedTeam);
 
             let comm = new GameComm(this.app.fire.fireUser.uid, GAME_COMM_TYPES.INITIALIZATION_DONE, this.app.fire.fireUser.uid);
             await this.app.fire.sendGameCommToAdmin(this.roomId, comm);
+
+            this.showTeamCodeInputView(true);
         } else if(gameComm.commType === GAME_COMM_TYPES.REPORT_MCQ_ANSWER_VERIFICATION) {
-            this.proceedToQuestionAnsweredView(gameComm.data.isCorrect, gameComm.data.baronCode);
+            this.showQuestionAnsweredView(gameComm.data.isCorrect, gameComm.data.baronCode);
+        } else if(gameComm.commType === GAME_COMM_TYPES.ASSIGN_MCQ_QUESTION) {
+            let commQuestion = gameComm.data.question;
+            let assignedTeam = gameComm.data.team;
+            let assignedQuestion = FireMCQQuestion.createFromFire(commQuestion.id, commQuestion);
+            this.setAssignedQuestionAndTeam(assignedQuestion, assignedTeam);
+
+            this.showTeamCodeInputView();
         } else {
             console.log(`No MCQ action done for comm type ${this.commType}`);
             return;
@@ -108,18 +158,16 @@ export class MCQGamePage extends Page {
         this.teamCodes = teamCodes;
     }
 
-    setAssignedQuestionAndTeam(assignedQuestion = null, assignedTeam = null, isInitialization = false) {
+    setAssignedQuestionAndTeam(assignedQuestion, assignedTeam) {
+        console.log(`Setting question ${assignedQuestion.id} for team ${assignedTeam}`)
+        this.assignedQuestion = assignedQuestion;
+        this.assignedTeam = assignedTeam;
+    }
+
+    showQuestionView(shouldStartQuestionAnswerTimer = false) {
         this.showLoaderContent();
 
-        let isNewQuestion = true;
-        if(!assignedQuestion && !assignedTeam) {
-            isNewQuestion = false;
-            console.log("Showing previous question again");
-        } else { 
-            console.log(`Setting question ${assignedQuestion.id} for team ${assignedTeam}`)
-            this.assignedQuestion = assignedQuestion;
-            this.assignedTeam = assignedTeam;
-
+        if(shouldStartQuestionAnswerTimer) {
             this.questionAnswerTimerCounter = GameConstants.questionAnswerWindowDuration;
         }
         
@@ -133,7 +181,7 @@ export class MCQGamePage extends Page {
             await this.app.fire.sendGameCommToAdmin(this.roomId, comm);
         });
 
-        if(!isInitialization || GameUtils.isGameInProgress(this.previousGameState)) this.showQuestionContent(isNewQuestion);
+        this.showQuestionContent(shouldStartQuestionAnswerTimer);
     }
 
     create() {        
@@ -151,7 +199,7 @@ export class MCQGamePage extends Page {
         return page;
     }
 
-    proceedToQuestionAnsweredView(isCorrect, baronCode) {
+    showQuestionAnsweredView(isCorrect, baronCode) {
         this.showLoaderContent();
         this.questionContent.getElement().innerHTML = this.createQuestionAnsweredContent(isCorrect, baronCode);
         if(!isCorrect) {
@@ -159,10 +207,13 @@ export class MCQGamePage extends Page {
         } else {
             clearInterval(this.questionAnswerTimerInterval);
             this.questionAnswerTimerInterval = null;
-            
-            this.questionAnswerTimerCounter = GameConstants.questionAnswerWindowDuration;
 
-            //setup button listener for close
+            this.moveToNextQuestionButton.addEventListener(["click"], async () => {
+                this.showLoaderContent(true);
+
+                let comm = new GameComm(this.app.fire.fireUser.uid, GAME_COMM_TYPES.REQUEST_MCQ_QUESTION, this.app.fire.fireUser.uid);
+                await this.app.fire.sendGameCommToAdmin(this.roomId, comm);
+            });
         }
         this.showQuestionContent(false);
     }
@@ -177,9 +228,15 @@ export class MCQGamePage extends Page {
             if(this.questionAnswerTimerCounter <= 0) {
                 clearInterval(this.questionAnswerTimerInterval);
                 this.questionAnswerTimerInterval = null;
+                if(this.questionLockoutTimerInterval) {
+                    clearInterval(this.questionLockoutTimerInterval);
+                } 
+                this.questionLockoutTimerInterval = null;
                 
-                this.questionAnswerTimerCounter = GameConstants.questionAnswerWindowDuration;
-                //request new question!!
+                this.showLoaderContent(true);
+
+                let comm = new GameComm(this.app.fire.fireUser.uid, GAME_COMM_TYPES.REQUEST_MCQ_QUESTION, this.app.fire.fireUser.uid);
+                this.app.fire.sendGameCommToAdmin(this.roomId, comm);
                 return;
             }
         }, ONE_SECOND);
@@ -197,13 +254,48 @@ export class MCQGamePage extends Page {
                 this.questionLockoutTimerInterval = null;
 
                 this.questionLockoutTimerCounter = GameConstants.questionWrongLockoutDuration;
-                this.setAssignedQuestionAndTeam();
+                this.showQuestionView(false);
                 return;
             }
         }, ONE_SECOND);
     }
 
+    showTeamCodeInputView(isInitialization = false) {
+        this.showLoaderContent();
+        this.questionContent.getElement().innerHTML = this.createTeamCodeInputContent();
+        
+        this.teamCodeSubmitButton.addEventListener(["click"], () => {
+            let teamCodeInputValue = this.teamCodeInput.getElement().value;
 
+            if(teamCodeInputValue === this.teamCodes[this.assignedTeam]) {
+                console.log("Team code was correct, showing question");
+                this.showQuestionView(true);
+            } else {
+                console.log("Team code incorrect, try again");
+            }
+        });
+
+        if(!isInitialization || GameUtils.isGameInProgress(this.previousGameState)) this.showQuestionContent(false);
+    }
+
+    createTeamCodeInputContent() {
+        return `
+            <div class="h hv-c vh-c">
+                This question is for team ${this.assignedTeam}.
+            </div>
+            <div class="h hv-c vh-c">
+                What is your team code? Hint: teamCodes are (${Object.entries(this.teamCodes)})
+            </div>
+            <div class="h hv-c vh-c">
+                <div class="panel">
+                    <input id="${this.teamCodeInput.label}" placeholder="Enter Team Code">
+                    <button id="${this.teamCodeSubmitButton.label}">
+                        Submit
+                    </button>
+                </div>
+            </div>
+        `;
+    }
 
     createQuestionAnsweredContent(isCorrect, baronCode) {
         if(isCorrect) {
@@ -230,7 +322,7 @@ export class MCQGamePage extends Page {
             return `
                 <div class="h hv-c vh-c">
                     Sorry that's the wrong answer.
-                    </div>
+                </div>
                 <div class="h hv-c vh-c">
                     You're timed out for 1 minute until you can try again.
                 </div>
@@ -275,15 +367,18 @@ export class MCQGamePage extends Page {
         }).join("");
     }
 
-    showQuestionContent(isNewQuestion) {
-        if(isNewQuestion) {
+    showQuestionContent(shouldStartQuestionAnswerTimer) {
+        if(shouldStartQuestionAnswerTimer) {
             this.startQuestionAnswerTimer();
         }
         this.questionContent.show();
         this.loadingContent.hide();
     }
 
-    showLoaderContent() {
+    showLoaderContent(clearQuestionContent = false) {
+        if(clearQuestionContent) {
+            this.questionContent.getElement().innerHTML = "";
+        }
         this.questionContent.hide();
         this.loadingContent.show();
     }

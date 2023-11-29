@@ -92,3 +92,10 @@ body {
 .hide {
     display: none !important;
 }
+
+.panel {
+    border-radius: var(--roundness);
+    border: 1px solid var(--panel-primary-border);
+    background: var(--panel-primary-background);
+    padding: 20px;
+}

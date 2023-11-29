@@ -1,11 +1,13 @@
 import { Page } from "../page.js";
-import { documentCreateElement } from "../components.js";
+import { Element, documentCreateElement } from "../components.js";
 import { GAME_ROLES, GameConstants, LeagueKookGame, TEAM } from "../game.js";
 import { GAME_COMM_STATE, GAME_COMM_TYPES, GameComm } from "../fire.js";
 
 export class AdminGamePage extends Page {
     constructor(app) {
         super("admin-game-page", app);
+
+        this.gameEndButton = new Element("id", "admin-game-end-button");
         
         this.reset();
     }
@@ -58,6 +60,11 @@ export class AdminGamePage extends Page {
             });
         });
 
+        this.gameEndButton.addEventListener(["click"], () => {
+            this.app.fire.endGame(this.roomId);
+            //Go back to lobby
+        });
+
         super.setup();
     }
 
@@ -87,8 +94,24 @@ export class AdminGamePage extends Page {
                 this.app.fire.sendGameCommToParticipant(this.roomId, fireUserUid, comm);
 
                 if(isCorrect) {
-                    this.registerBaronCodeWithBaron(baronCode, mcqPlayer);
+                    this.registerBaronCode(baronCode, mcqPlayer);
                 }
+            }
+        } else if(gameComm.commType === GAME_COMM_TYPES.REQUEST_MCQ_QUESTION) {
+            let fireUserUid = gameComm.data.fireUserUid;
+            let mcqPlayer = this.fetchMCQPlayerForFireUser(fireUserUid);
+            
+            if(mcqPlayer) {
+                mcqPlayer.completedQuestion();
+                this.game.assignTeamsToUnassignedMCQs();
+                this.game.assignQuestionsToMCQs();
+                let assignedQuestion = mcqPlayer.getAssignedQuestion();
+                let assignedTeam = mcqPlayer.getAssignedTeam();
+
+                console.log(`Assigning question ${assignedQuestion.id} for team ${assignedTeam}`)
+
+                let comm = new GameComm(GAME_ROLES.ADMIN, GAME_COMM_TYPES.ASSIGN_MCQ_QUESTION, {question: assignedQuestion, team: assignedTeam});
+                this.app.fire.sendGameCommToParticipant(this.roomId, fireUserUid, comm);
             }
         } else {
             console.log(`No Admin action done for comm type ${this.commType}`);
@@ -97,7 +120,7 @@ export class AdminGamePage extends Page {
         this.app.fire.setAdminGameCommAsProcessed(this.roomId, gameCommId);
     }
 
-    async registerBaronCodeWithBaron(baronCode, mcqPlayer) {
+    async registerBaronCode(baronCode, mcqPlayer) {
         let team = mcqPlayer.getAssignedTeam();
         let expiryTime = Date.now() + GameConstants.baronCodeActiveDuration;
 
@@ -105,12 +128,10 @@ export class AdminGamePage extends Page {
             baronCode: baronCode, 
             team: team,
             expiryTime: expiryTime,
+            active: true,
         }
         
         this.game.addToBaronCodeHistory(baronCodePackage);
-
-        let comm = new GameComm(GAME_ROLES.ADMIN, GAME_COMM_TYPES.REGISTER_NEW_BARON_CODE, baronCodePackage);
-        await this.app.fire.sendGameCommToParticipant(this.roomId, this.game.getBaronPlayer().fireUser.uid, comm);
     }
 
     fetchMCQPlayerForFireUser(fireUserUid) {
@@ -133,8 +154,12 @@ export class AdminGamePage extends Page {
         let page = documentCreateElement("div", this.label, "page");
         
         page.innerHTML = `
-            <div id="admin-game-page-wrapper">
-                ADMIN
+            <div id="admin-game-page-content" class="v vh-c hv-c">
+                <div class="h hv-c vh-c panel">
+                    <button id="${this.gameEndButton.label}">
+                        End!
+                    </button>
+                </div>
             </div>
         `;
         

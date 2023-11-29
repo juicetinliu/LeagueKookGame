@@ -1,4 +1,103 @@
 /**
+ * Pages:
+ *  - Lobby
+ *  - Settings (game settings + question editor)
+ *  - Game - MCQ
+ *  - Game - Baron
+ *  - Game - Admin
+ * 
+ * The Lobby
+ *  - homescreen has options to create or join a room.
+ *  - each computer generates a pcId (randomtext + timestamp -> hashed) stored in cookies
+ *  
+ *  - Create a room: admin computer opens the website; creates a room (with generated shortcode) and game object
+ *      - firebase room opens
+ *          - game settings are defaulted
+ *          - "locked" is true
+ *          - "gameState" is 0
+ *          - admin role is set as pcId
+ *               - only admin role has 'write' permissions
+ *          - passcode to join room is generated
+ *          - room active timestamp is created (this will be updated every hour the admin is active) -> used to delete a room/rooms when a user next opens the website (1 day TTL)
+ *      - room shortcode and passcode displayed on admin's computer, along with participant edit list, game settings editor, "Un/Lock room" toggle , "End game", "Start game" 
+ *          - looks like a league lobby
+ *          - participants can be kicked/made admin
+ *          - "locked" is now false
+ *          - "Start game" only allowed when all participants are "ready"; and participant assignments follow contraints below
+ * 
+ *  - Join a room: participant computers can open the website and the room shortcode
+ *      - they must input the correct passcode to join
+ *      - can only join a room if "locked" is false, otherwise pushed back to homescreen
+ *      - pcId is added to the paricipants for the room
+ *          - limited to 'read' permissions for that room
+ *      - room is displayed, along with participant list, "Leave room", "Ready/Unready"
+ * 
+ *  - Participants list - only editable by the admin; once game starts, this CANNOT change.
+ *      - one computer is designated as the BARON computer (default first computer that joins)
+ *      - the rest are MCQ computers
+ *      - requires minimum 4 participants to start a game, 3 if ADMIN is also BARON
+ *      - the ADMIN computer can also decide to select their role as BARON (or not)
+ *          - If none are selected, then ADMIN computer can be used to track BARON health progress, play/pause game
+ *          - If MCQ or BARON is selected, then ADMIN computer asks for a admin password (later used to resume ADMIN role) before moving back to game lobby screen
+ *              - When in game, this computer will have an extra option to see admin page
+ * 
+ *  - e.g. 3 computers; [ADMIN/BARON][MCQ][MCQ]
+ *         4 computers; [ADMIN],[BARON],[MCQ],[MCQ] OR [ADMIN/BARON],[MCQ],[MCQ],[MCQ]
+ *         5 computers; [ADMIN],[BARON],[MCQ],[MCQ],[MCQ] OR [ADMIN/BARON],[MCQ],[MCQ],[MCQ],[MCQ]
+ *         etc.
+ * 
+ * 
+ * 
+ *  The Game
+ *  - Room (firebase)
+ *      - Roles (ADMIN write access - updated when game starts, rest have read access)
+ *           - <pcId> (listened to by specific pcId)
+ *               - ready: boolean
+ *               - role: BARON/MCQ
+ *      - Game
+ *          - baron-<pcId> (only ADMIN write access, rest have read access)
+ *               - current health
+ *               - attack codes [array]
+ *                     - <attack code>
+ *                           - team: <teamRed | teamBlue>
+ *                           - timeGenerated: [TIME]
+ *               - teamRed damage dealt [array of attacks]
+ *               - teamBlue damage dealt [array of attacks]
+ *          - mcq-<pcId> (listened to by specific pcId)
+ *               - Current QuestionId
+ *               - assignedTeam
+ *               - assignedTime
+ *               - timeout time
+ *               - Answer input
+ * 
+ *          - teamRed
+ *               - Questions unanswered [array of ids] (only ADMIN write access, rest have read access)
+ *          - teamBlue
+ *               - Questions unanswered [array of ids] (only ADMIN write access, rest have read access)
+ *          - attackCode queue [indexed list]:
+ *               - <AttackCode>
+ *                      - []
+ *      - Settings (only ADMIN write access, rest have read access)
+ *          - Attack Point distribution - store bezier control points?
+ *          - Attack Passcode expiry time
+ *          - Game duration? Question amount? 
+ *          - Baron Starting Health
+ *          - MCQ assignment parameters
+ *          - Team passwords
+ * ADMIN starts the game
+ *      - Participants list is compiled, and pcIds are added to the Roles along with correct Role and "ready" flags
+ *      - Each computer listens to Roles/<pcId> for a change, and sets its own role
+ *      - MCQ/BARON computers setup/render their pages; once ready, they mark their "ready" flag true 
+ * ADMIN reads that all computers are "ready"
+ *      - ADMIN creates Game object
+ *      - Assigns MCQs to mcq-<pcId>
+ * 
+ * Questions:
+ *  - title: <text>
+ *  - correctAnswer: <text>
+ *  - backgroundimg: <url>
+ * 
+ * 
  * MCQ assignment:
  *  - Total computers = N
  *  - Minimum team computers = T (CONFIGURABLE - minimum of 0; maximum of N/2)
@@ -66,7 +165,7 @@ export const GAME_STATES = {
     LOBBY: "lobby",
     GAME_INIT: "gameInit",
     GAME_STARTED: "gameStarted",
-    END: "end",
+    END: "end", //NOT NEEDED?
 }
 
 const RoomConstants = {
@@ -128,6 +227,9 @@ export const GameUtils = {
     generateBaronCode: () => {
         return generateRandomString(GameConstants.baronCodeLength, GameConstants.baronCodeCharacterPool);
     },
+    hasGameEnded: (gameState) => {
+        return gameState === GAME_STATES.END || gameState === GAME_STATES.LOBBY;
+    }
 }
 
 export const GAME_ROLES = {
@@ -292,24 +394,24 @@ export class LeagueKookGame {
         this.redTeamQuestions = this.questions.slice(0);
         this.blueTeamQuestions = this.questions.slice(0);
 
-        this.assignQuestionsToMCQ();
+        this.assignQuestionsToMCQs();
         console.log(this.mcqPlayerList.map(mcq => {return mcq.toInfo()}));
 
         // //Sample game flow
         // this.mcqs.forEach(mcq => {mcq.completedQuestion()});
         // this.assignTeamsToUnassignedMCQs();
-        // this.assignQuestionsToMCQ();
+        // this.assignQuestionsToMCQs();
         // console.log(this.mcqs.map(c => {return [c.team, c.assignedQuestion.title]}));
         // this.mcqs.forEach(mcq => {mcq.completedQuestion()});
         // this.assignTeamsToUnassignedMCQs();
-        // this.assignQuestionsToMCQ();
+        // this.assignQuestionsToMCQs();
         // console.log(this.mcqs.map(c => {return [c.team, c.assignedQuestion.title]}));
     }
 
     /** 
      * Use after calling {@link assignTeamsToUnassignedMCQs}
      */
-    assignQuestionsToMCQ() {
+    assignQuestionsToMCQs() {
         this.mcqPlayerList.forEach(mcq => {
             if(mcq.needsQuestionAssignment()){
                 let isTeamBlue = mcq.getAssignedTeam() === TEAM.BLUE;
@@ -347,6 +449,25 @@ export class LeagueKookGame {
             console.log(`Regenerated baron code: ${baronCode}`);
         }
         return baronCode;
+    }
+
+    verifyAndReturnBaronCode(baronCode) {
+        let validCodeList = this.baronCodeHistory.filter(baronCodePackage => {
+            return baronCodePackage.active && Date.now() <= baronCodePackage.expiryTime && baronCodePackage.baronCode === baronCode;
+        });
+        if(!validCodeList.length || validCodeList.length === 0) {
+            console.log(`Baron code ${baronCode} is not valid`);
+            return false;
+        } else {
+            validCodeList.forEach(baronCodePackage => {
+                baronCodePackage.active = false;
+            })
+            if(validCodeList.length > 1) {
+                console.log(`${validCodeList.length} baron codes found when 1 was expected. Marked them as inactive.`);
+                return false;
+            }
+        }
+        return validCodeList[0];
     }
 
     addToBaronCodeHistory(baronCodePackage) {
@@ -416,6 +537,6 @@ export class LeagueKookGame {
             mcq.assignToTeam(popRandomElementFromArray(teamAssignments));
         })
 
-        console.log("Assigned teams to MCQs", mcqsThatNeedAssignment.map(c => {return c.team}));
+        console.log("Assigned teams to MCQs", mcqsThatNeedAssignment.map(c => {return c.assignedTeam}));
     }
 }
