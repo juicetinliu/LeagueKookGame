@@ -62,10 +62,10 @@ export class LobbyPage extends Page {
         super.reset();
     }
 
-    setup(setupArgs) {
+    async setup(setupArgs) {
         console.log("Setting up Lobby page");
         this.reset();
-        this.setRoomParametersAndPageState(setupArgs);
+        await this.setRoomParametersAndPageState(setupArgs);
         this.setInitialRoomPageElements();
 
         if(this.gameStarted) console.log("Game already started; still setting up lobby");
@@ -97,10 +97,12 @@ export class LobbyPage extends Page {
             }
             if(!this.gameStarted) {
                 this.gameStartListener = this.app.fire.attachParticipantGameStartListener(this.roomId, async (newGameState) => {
-                    console.log("=== GAME STARTED ===");
-                    this.saveGameStateToPageState(newGameState);
-                    this.app.savePageStateToHistory(true);
-                    await this.goToGamePage();
+                    if(GameUtils.hasGameStarted(newGameState)) {
+                        console.log("=== GAME STARTED ===");
+                        this.saveGameStateToPageState(newGameState);
+                        this.app.savePageStateToHistory(true);
+                        await this.goToGamePage();
+                    }
                 });
             } else {
                 console.log("Game has already started, not attaching GameStart listener");
@@ -258,15 +260,13 @@ export class LobbyPage extends Page {
         this.roomControlsReadyButton.getElement().innerHTML = isReady ? "Ready!" : "Not Ready!";
     }
 
-    setRoomParametersAndPageState(setupArgs) {
+    async setRoomParametersAndPageState(setupArgs) {
         this.roomId = setupArgs.roomId;
         this.roomPasscode = setupArgs.roomPasscode;
         this.isAdmin = setupArgs.isAdmin;
         this.isParticipant = setupArgs.isParticipant;
         this.isRoomLocked = setupArgs.isRoomLocked;
         this.isReady = setupArgs.isReady;
-        this.gameState = setupArgs.gameState;
-        this.gameStarted = GameUtils.hasGameStarted(setupArgs.gameState);
 
         this.pageState.roomId = this.roomId;
         this.pageState.roomPasscode = this.roomPasscode;
@@ -274,8 +274,9 @@ export class LobbyPage extends Page {
         this.pageState.isParticipant = this.isParticipant;
         this.pageState.isRoomLocked = this.isRoomLocked;
         this.pageState.isReady = this.isReady;
-        this.pageState.gameState = this.gameState;
-        this.pageState.gameStarted = this.gameStarted;
+
+        let gameState = await this.app.fire.getRoomGameState(this.roomId);
+        this.saveGameStateToPageState(gameState);
     }
 
     updateRoomWhenParticipantsChange(data) {

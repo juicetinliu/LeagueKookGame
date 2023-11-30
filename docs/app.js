@@ -88,7 +88,7 @@ export class App {
         let state = event.state;
         if(state) {
             let currentPageId = state.currentPageId;
-            let pageState = (state.pageState && Object.keys(state.pageState).length) ? state.pageState : null ;
+            let pageState = (state.pageState && Object.keys(state.pageState).length) ? state.pageState : {} ;
             await this.goToPage(this.pages[currentPageId], pageState, {}, false);
         }
     }

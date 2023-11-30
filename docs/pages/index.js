@@ -95,7 +95,6 @@ export class JoinRoomPage extends Page {
                                 isParticipant: isRoomActive.isParticipant,
                                 isRoomLocked: roomState ? roomState.isRoomLocked : false,
                                 isReady: isRoomActive.isReady ? isRoomActive.isReady : false,
-                                gameState: roomState.gameState
                             });
                             return;
                         }
@@ -126,7 +125,6 @@ export class JoinRoomPage extends Page {
                         isParticipant: joinSucceded.isParticipant,
                         isRoomLocked: roomState ? roomState.isRoomLocked : false,
                         isReady: joinSucceded.isReady ? joinSucceded.isReady : false,
-                        gameState: roomState ? roomState.gameState : (joinSucceded.gameState ? joinSucceded.gameState : null)
                     });
                     return;
                 } else {

@@ -1,6 +1,6 @@
 import { Page } from "../page.js";
 import { Element, documentCreateElement } from "../components.js";
-import { GAME_ROLES, GameConstants, LeagueKookGame, TEAM } from "../game.js";
+import { GAME_ROLES, LeagueKookGame, TEAM } from "../game.js";
 import { GAME_COMM_STATE, GAME_COMM_TYPES, GameComm } from "../fire.js";
 
 export class AdminGamePage extends Page {
@@ -41,7 +41,7 @@ export class AdminGamePage extends Page {
             let mcqUserId = mcq.fireUser.uid;
             let assignedQuestion = mcq.getAssignedQuestion();
             let assignedTeam = mcq.getAssignedTeam();
-            // TODO: PROPER TEAM CODE MANAGEMENT/FETCHING/SETTINGS
+
             let teamCodes = {}
             teamCodes[TEAM.BLUE] = "1234";
             teamCodes[TEAM.RED] = "4321";
@@ -61,8 +61,7 @@ export class AdminGamePage extends Page {
         });
 
         this.gameEndButton.addEventListener(["click"], () => {
-            this.app.fire.endGame(this.roomId);
-            //Go back to lobby
+            this.endGame();
         });
 
         super.setup();
@@ -75,13 +74,14 @@ export class AdminGamePage extends Page {
             this.isUserInitializedMap[fireUserUid] = true;
             if(Object.values(this.isUserInitializedMap).every(i => i)) {
                 // Start game once all users are intialized
+                // TODO: WAIT FOR BARON TO BE INITIALIZED TOO
                 this.app.fire.startGame(this.roomId);
             }
         } else if(gameComm.commType === GAME_COMM_TYPES.VERIFY_MCQ_ANSWER) {
             let fireUserUid = gameComm.data.fireUserUid;
             let answer = gameComm.data.answer;
 
-            let mcqPlayer = this.fetchMCQPlayerForFireUser(fireUserUid);
+            let mcqPlayer = this.game.fetchMCQPlayerForFireUser(fireUserUid);
             if(mcqPlayer) {
                 let baronCode = null;
                 let isCorrect = false;
@@ -99,7 +99,7 @@ export class AdminGamePage extends Page {
             }
         } else if(gameComm.commType === GAME_COMM_TYPES.REQUEST_MCQ_QUESTION) {
             let fireUserUid = gameComm.data.fireUserUid;
-            let mcqPlayer = this.fetchMCQPlayerForFireUser(fireUserUid);
+            let mcqPlayer = this.game.fetchMCQPlayerForFireUser(fireUserUid);
             
             if(mcqPlayer) {
                 mcqPlayer.completedQuestion();
@@ -113,6 +113,31 @@ export class AdminGamePage extends Page {
                 let comm = new GameComm(GAME_ROLES.ADMIN, GAME_COMM_TYPES.ASSIGN_MCQ_QUESTION, {question: assignedQuestion, team: assignedTeam});
                 this.app.fire.sendGameCommToParticipant(this.roomId, fireUserUid, comm);
             }
+        } else if(gameComm.commType === GAME_COMM_TYPES.VERIFY_BARON_CODE) {
+            let baronCode = gameComm.data.baronCode;
+            let baronCodePackage = this.game.verifyDeactivateAndReturnBaronCodePackage(baronCode);
+            let baronPlayer = this.game.getBaronPlayer();
+
+            if(baronPlayer) {
+                let isValid = false;
+                let damageAmount = 0;
+                let team = null;
+                let isLastHit = false;
+
+                if(baronCodePackage || baronCodePackage.team) {
+                    isValid = true;
+                    team = baronCodePackage.team;
+                    damageAmount = this.game.generateBaronDamageAmount();
+                    isLastHit = this.game.damageBaronAndVerifyDeath(damageAmount);
+                }
+
+                let comm = new GameComm(GAME_ROLES.ADMIN, GAME_COMM_TYPES.REPORT_BARON_CODE, {isValid: isValid, damageAmount: 0, team: team, isLastHit: isLastHit});
+                this.app.fire.sendGameCommToParticipant(this.roomId, baronPlayer.fireUser.uid, comm);
+                
+                if(isLastHit) {
+                    this.broadcastEndgameToMCQs(team);
+                }
+            }
         } else {
             console.log(`No Admin action done for comm type ${this.commType}`);
             return;
@@ -122,7 +147,7 @@ export class AdminGamePage extends Page {
 
     async registerBaronCode(baronCode, mcqPlayer) {
         let team = mcqPlayer.getAssignedTeam();
-        let expiryTime = Date.now() + GameConstants.baronCodeActiveDuration;
+        let expiryTime = Date.now() + this.game.getBaronCodeActiveDuration();
 
         let baronCodePackage = {
             baronCode: baronCode, 
@@ -134,13 +159,21 @@ export class AdminGamePage extends Page {
         this.game.addToBaronCodeHistory(baronCodePackage);
     }
 
-    fetchMCQPlayerForFireUser(fireUserUid) {
-        let assignedMCQPlayerList = this.game.getMCQPlayerList().filter(mcq => {
-            return mcq.fireUser.uid === fireUserUid;
-        });
-        if(assignedMCQPlayerList.length !== 1) throw `Not a valid mcq player to mark as correct.`
-        return assignedMCQPlayerList[0];
+    endGame() {
+        this.app.fire.endGame(this.roomId);
+        //Clear game comms
+        //Go back to lobby
     }
+
+    broadcastEndgameToMCQs(winningTeam) {
+        let mcqPlayers = this.game.getMCQPlayerList();
+        mcqPlayers.forEach(mcq => {
+            let mcqUserId = mcq.fireUser.uid;
+
+            let comm = new GameComm(GAME_ROLES.ADMIN, GAME_COMM_TYPES.NOTIFY_MCQ_END_GAME, {winningTeam: winningTeam});
+            this.app.fire.sendGameCommToParticipant(this.roomId, mcqUserId, comm);
+        });
+    } 
 
     setRoomParametersAndPageState(setupArgs) {
         this.roomId = setupArgs.roomId;

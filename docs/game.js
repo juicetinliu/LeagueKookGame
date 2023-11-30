@@ -255,6 +255,40 @@ export const PROFILE_IMAGES_CODES = {
     mcq: ["778", "779", "780"]
 }
 
+export const BaronDamageGenerator = {
+    /**
+     * Gaussian distribution
+     * See https://stackoverflow.com/a/49434653 for details
+     */
+    GAUSSIAN: (min, max) => {
+        let u = 0, v = 0;
+        while(u === 0) u = Math.random() //Converting [0,1) to (0,1)
+        while(v === 0) v = Math.random()
+        let num = Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v )
+        num = num / 10.0 + 0.5 // Translate to 0 -> 1
+        if (num > 1 || num < 0) 
+          num = randn_bm(min, max) // resample between 0 and 1 if out of range
+        
+        else{
+          num *= max - min // Stretch to fill range
+          num += min // offset to min
+        }
+        return Math.round(num);
+    },
+    /**
+     * Uniform distribution
+     */
+    UNIFORM: (min, max) => {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    },
+    /**
+     * Custom distribution (weightTable contains weighting for each number )
+     */
+    CUSTOM: (min, max) => {
+        //??
+    }
+}
+
 export const GameConstants = {
     defaultMinimumTeamComputers: RoomConstants.minMCQRoleCount/2,
     defaultRandomSequenceMultiplier: 2,
@@ -265,6 +299,11 @@ export const GameConstants = {
 
     questionAnswerWindowDuration: 5 * 60 * ONE_SECOND, // 5 minutes before a question expires
     questionWrongLockoutDuration: 1 * 60 * ONE_SECOND, // 1 minute before a question can be retried
+
+    baronStartingHealthAmount: 11400,
+    defaultBaronDamageGenerator: BaronDamageGenerator.GAUSSIAN,
+    baronCodeMaxDamageAmount: 1000,
+    baronCodeMinDamageAmount: 10,
 }
 
 export const TEAM = {
@@ -279,8 +318,26 @@ class Player {
 }
 
 class BaronPlayer extends Player {
-    constructor(fireUser) {
+    constructor(fireUser, maxHealth) {
         super(fireUser);
+        this.maxHealth = maxHealth;
+        this.health = maxHealth;
+    }
+
+    receiveDamage(damageAmount) {
+        this.health -= damageAmount;
+    }
+
+    isDead() {
+        return this.health <= 0;
+    }
+
+    revive() {
+        this.health = this.maxHealth;
+    }
+
+    toInfo() {
+        return [this.fireUser.uid, this.health];
     }
 }
 
@@ -353,8 +410,14 @@ export class LeagueKookGame {
 
         this.baronCodeHistory = [];
 
+        this.baronMaxHealth = GameConstants.baronStartingHealthAmount;
+        this.baronCodeActiveDuration = GameConstants.baronCodeActiveDuration;
+        this.baronCodeMaxDamageAmount = GameConstants.baronCodeMaxDamageAmount;
+        this.baronCodeMinDamageAmount = GameConstants.baronCodeMinDamageAmount;
+
         this.minTeamComputers = GameConstants.defaultMinimumTeamComputers;
         this.randomSeqMultiplier = GameConstants.defaultRandomSequenceMultiplier;
+        this.baronDamageGenerator = GameConstants.defaultBaronDamageGenerator;
     }
 
     setInitialParams(setupArgs) {
@@ -369,13 +432,13 @@ export class LeagueKookGame {
             return user.role === GAME_ROLES.BARON
         });
         if(filteredBaronUserList.length !== 1) throw `Expected one Baron user in lobby but got ${filteredBaronUserList}`;
-        this.baronPlayer = new BaronPlayer(filteredBaronUserList[0]);
+        this.baronPlayer = new BaronPlayer(filteredBaronUserList[0], this.baronMaxHealth);
         this.mcqPlayerList = this.lobbyUserList.filter(user => {
             return user.role === GAME_ROLES.MCQ
         }).map(mcqUser => {
             return new MCQPlayer(mcqUser);
         });
-        this.numMcqs = this.mcqPlayerList.length;
+        this.numMcqs = this.getMCQPlayerList().length;
 
         this.assignTeamsToUnassignedMCQs();
 
@@ -395,7 +458,7 @@ export class LeagueKookGame {
         this.blueTeamQuestions = this.questions.slice(0);
 
         this.assignQuestionsToMCQs();
-        console.log(this.mcqPlayerList.map(mcq => {return mcq.toInfo()}));
+        console.log(this.getMCQPlayerList().map(mcq => {return mcq.toInfo()}));
 
         // //Sample game flow
         // this.mcqs.forEach(mcq => {mcq.completedQuestion()});
@@ -412,7 +475,7 @@ export class LeagueKookGame {
      * Use after calling {@link assignTeamsToUnassignedMCQs}
      */
     assignQuestionsToMCQs() {
-        this.mcqPlayerList.forEach(mcq => {
+        this.getMCQPlayerList().forEach(mcq => {
             if(mcq.needsQuestionAssignment()){
                 let isTeamBlue = mcq.getAssignedTeam() === TEAM.BLUE;
                 let teamQuestionList = isTeamBlue
@@ -437,8 +500,20 @@ export class LeagueKookGame {
         return this.mcqPlayerList;
     }
 
+    fetchMCQPlayerForFireUser(fireUserUid) {
+        let assignedMCQPlayerList = this.getMCQPlayerList().filter(mcq => {
+            return mcq.fireUser.uid === fireUserUid;
+        });
+        if(assignedMCQPlayerList.length !== 1) throw `Expected only one user to match but got ${assignedMCQPlayerList.length}`;
+        return assignedMCQPlayerList[0];
+    }
+
     getBaronPlayer() {
         return this.baronPlayer;
+    }
+
+    getBaronCodeActiveDuration() {
+        return this.baronCodeActiveDuration;
     }
 
     generateBaronCode() {
@@ -451,7 +526,7 @@ export class LeagueKookGame {
         return baronCode;
     }
 
-    verifyAndReturnBaronCode(baronCode) {
+    verifyDeactivateAndReturnBaronCodePackage(baronCode) {
         let validCodeList = this.baronCodeHistory.filter(baronCodePackage => {
             return baronCodePackage.active && Date.now() <= baronCodePackage.expiryTime && baronCodePackage.baronCode === baronCode;
         });
@@ -463,11 +538,22 @@ export class LeagueKookGame {
                 baronCodePackage.active = false;
             })
             if(validCodeList.length > 1) {
-                console.log(`${validCodeList.length} baron codes found when 1 was expected. Marked them as inactive.`);
+                console.log(`${validCodeList.length} baron codes found when 1 was expected. Shouldn't be possible. Marked them as inactive.`);
                 return false;
             }
         }
+        console.log(`Baron code ${baronCode} is valid`);
         return validCodeList[0];
+    }
+
+    damageBaronAndVerifyDeath(damageAmount) {
+        let baronPlayer = this.getBaronPlayer();
+        baronPlayer.receiveDamage(damageAmount);
+        return baronPlayer.isDead();
+    }
+
+    generateBaronDamageAmount() {
+        return this.baronDamageGenerator(this.baronCodeMinDamageAmount, this.baronCodeMaxDamageAmount);
     }
 
     addToBaronCodeHistory(baronCodePackage) {
@@ -494,7 +580,7 @@ export class LeagueKookGame {
     addMinimumTeamComputers(teamAssignments = []) {
         let teamRedCount = 0;
         let teamBluecount = 0;
-        this.mcqPlayerList.forEach(mcq => {
+        this.getMCQPlayerList().forEach(mcq => {
             if(mcq.team === TEAM.BLUE) teamBluecount++;
             if(mcq.team === TEAM.RED) teamRedCount++;
         });
@@ -512,7 +598,7 @@ export class LeagueKookGame {
         let teamAssignments = this.addMinimumTeamComputers();
 
         //First apply minimum assignment rules
-        let mcqsThatNeedAssignment = this.mcqPlayerList.filter(mcq => {
+        let mcqsThatNeedAssignment = this.getMCQPlayerList().filter(mcq => {
             return mcq.needsTeamAssignment();
         });
 

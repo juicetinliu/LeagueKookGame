@@ -208,7 +208,7 @@ export class Fire {
     }
 
     /**
-     * **Admin only operation** - ends the game
+     * **Admin only operation** - ends the game - goes back to lobby
      */
     async endGame(roomId) {
         console.log("=== ENDING GAME ===");
@@ -627,6 +627,11 @@ export const GAME_COMM_STATE = {
 
 export const GAME_COMM_TYPES = {
     /**
+     * ADMIN to BARON
+     * Use this comm type to initialize the BARON
+     */
+    INITIALIZE_BARON: "initializeBaron",
+    /**
      * ADMIN to MCQ
      * Use this comm type to initialize the first MCQ question and team codes.
      */
@@ -666,6 +671,11 @@ export const GAME_COMM_TYPES = {
      * Use this comm type to report a baron attack code status
      */
     REPORT_BARON_CODE: "reportBaronCode",
+    /**
+     * ADMIN to MCQ
+     * Use this comm type to notify MCQ of the last hit on BARON
+     */
+    NOTIFY_MCQ_END_GAME: "notifyMCQEndGame",
 }
 
 export class GameComm {
@@ -681,7 +691,11 @@ export class GameComm {
 
     toFireFormat() {
         let comm = {};
-        if(this.commType === GAME_COMM_TYPES.INITIALIZE_MCQ_QUESTION_AND_CODES) {
+        if(this.commType === GAME_COMM_TYPES.INITIALIZE_BARON) {
+            comm["data"] = {
+                health: this.commMessage.health,
+            }
+        } else if(this.commType === GAME_COMM_TYPES.INITIALIZE_MCQ_QUESTION_AND_CODES) {
             comm["data"] = {
                 question: this.commMessage.question,
                 team: this.commMessage.team,
@@ -689,7 +703,7 @@ export class GameComm {
             }
         } else if(this.commType === GAME_COMM_TYPES.INITIALIZATION_DONE) {
             comm["data"] = {
-                fireUserUid: this.commMessage
+                fireUserUid: this.commMessage.fireUserUid
             }
         } else if(this.commType === GAME_COMM_TYPES.VERIFY_MCQ_ANSWER) {
             comm["data"] = {
@@ -703,7 +717,7 @@ export class GameComm {
             }
         } else if(this.commType === GAME_COMM_TYPES.REQUEST_MCQ_QUESTION) {
             comm["data"] = {
-                fireUserUid: this.commMessage,
+                fireUserUid: this.commMessage.fireUserUid,
             }
         } else if(this.commType === GAME_COMM_TYPES.ASSIGN_MCQ_QUESTION) {
             comm["data"] = {
@@ -719,6 +733,11 @@ export class GameComm {
                 isValid: this.commMessage.isValid,
                 damageAmount: this.commMessage.damageAmount,
                 team: this.commMessage.team,
+                isLastHit: this.commMessage.isLastHit,
+            }
+        } else if(this.commType === GAME_COMM_TYPES.NOTIFY_MCQ_END_GAME) {
+            comm["data"] = {
+                winningTeam: this.commMessage.winningTeam,
             }
         } else {
             throw `Invalid comm type ${this.commType} for fire usage`;

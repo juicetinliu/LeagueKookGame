@@ -27,6 +27,8 @@ export class BaronGamePage extends Page {
             }
             await this.adminPage.setup(setupArgs);
             this.adminPage.hide();
+        } else {
+            
         }
         super.setup();
     }
