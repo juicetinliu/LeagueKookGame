@@ -52,18 +52,18 @@ export class MCQGamePage extends Page {
         this.moveToNextQuestionButton = new Element("id", "mcq-move-to-next-question");
         this.lockoutTimerText = new Element("id", "mcq-lockout-timer-text");
         this.answerWindowTimerText = new Element("id", "mcq-answer-window-timer-text");
+        this.returnToLobbyButton = new Element("id", "mcq-return-to-lobby");
 
         this.reset();
     }
 
     reset() {
         this.gameCommsBeingProcessedMap = {};
-        this.roomId = null;
+
         this.assignedQuestion = null;
         this.assignedTeam = null;
         this.teamCodes = null;
         this.previousGameState = null;
-        this.winningTeam = null;
 
         //Initialize durations through ADMIN call?
         this.questionAnswerWindowDuration = GameConstants.questionAnswerWindowDuration;
@@ -92,10 +92,12 @@ export class MCQGamePage extends Page {
         console.log("Setting up MCQ game page");
         this.reset();
         this.setRoomParametersAndPageState(setupArgs);
-        
+        console.log(setupArgs);
+
         if(!this.roomId || this.winningTeam) {
             this.showEndGameView();
         } else {
+            // TODO: Refactor into fire?
             this.participantCommsListener = this.app.fire.attachParticipantGameCommsListener(this.roomId, (comms) => {
                 Object.entries(comms).filter(commInfo => {
                     return commInfo[1].commState === GAME_COMM_STATE.WAITING && !this.gameCommsBeingProcessedMap[commInfo[0]];
@@ -109,7 +111,7 @@ export class MCQGamePage extends Page {
                 if(GameUtils.isGameInProgress(gameState) && this.assignedQuestion !== null && this.assignedTeam !== null) {
                     this.showQuestionContent();
                 } else if (GameUtils.hasGameEnded(gameState)) {
-                    console.log("=== GAME ENDED ===")
+                    console.log("=== GAME ENDED ===");
                     this.reset();
                     this.app.savePageStateToHistory(true);
                     this.showEndGameView();
@@ -159,9 +161,11 @@ export class MCQGamePage extends Page {
 
     setRoomParametersAndPageState(setupArgs) {
         this.roomId = setupArgs.roomId;
+        this.roomPasscode = setupArgs.roomPasscode;
         this.winningTeam = setupArgs.winningTeam;
 
         this.pageState.roomId = this.roomId;
+        this.pageState.roomPasscode = this.roomPasscode;
         this.pageState.winningTeam = this.winningTeam;
     }
 
@@ -190,12 +194,13 @@ export class MCQGamePage extends Page {
             let answer = option.dataset.answer;
             let comm = new GameComm(this.app.fire.fireUser.uid, GAME_COMM_TYPES.VERIFY_MCQ_ANSWER, {fireUserUid: this.app.fire.fireUser.uid, answer: answer});
             await this.app.fire.sendGameCommToAdmin(this.roomId, comm);
+            return;
         });
 
         this.showQuestionContent(shouldStartQuestionAnswerTimer);
     }
 
-    create() {        
+    create() {
         let page = documentCreateElement("div", this.label, "page");
         
         page.innerHTML = `
@@ -213,7 +218,22 @@ export class MCQGamePage extends Page {
     showEndGameView() {
         this.showLoaderContent(true);
         this.questionContent.getElement().innerHTML = this.createEndGameContent();
-        this.showQuestionContent(false)
+
+        this.returnToLobbyButton.addEventListener(["click"], async () => {
+            this.showLoaderContent();
+
+            await this.app.goToPage(this.app.pages.lobby, {
+                roomId: this.roomId,
+                roomPasscode: this.roomPasscode,
+                isAdmin: false,
+                isParticipant: true,
+                isRoomLocked: false,
+                isReady: true,
+            });
+            return;
+        });
+
+        this.showQuestionContent();
     }
 
     showQuestionAnsweredView(isCorrect, baronCode) {
@@ -229,9 +249,10 @@ export class MCQGamePage extends Page {
 
                 let comm = new GameComm(this.app.fire.fireUser.uid, GAME_COMM_TYPES.REQUEST_MCQ_QUESTION, {fireUserUid: this.app.fire.fireUser.uid});
                 await this.app.fire.sendGameCommToAdmin(this.roomId, comm);
+                return;
             });
         }
-        this.showQuestionContent(false);
+        this.showQuestionContent();
     }
 
     resetQuestionAnswerTimer() {
@@ -239,6 +260,7 @@ export class MCQGamePage extends Page {
             clearInterval(this.questionAnswerTimerInterval);
         } 
         this.questionAnswerTimerInterval = null;
+        this.questionAnswerTimerCounter = this.questionAnswerWindowDuration;
     }
 
     resetQuestionLockoutTimer() {
@@ -246,6 +268,7 @@ export class MCQGamePage extends Page {
             clearInterval(this.questionLockoutTimerInterval);
         } 
         this.questionLockoutTimerInterval = null;
+        this.questionLockoutTimerCounter = this.questionWrongLockoutDuration;
     }
 
     startQuestionAnswerTimer() {
@@ -278,14 +301,13 @@ export class MCQGamePage extends Page {
             if(this.questionLockoutTimerCounter <= 0) {
                 this.resetQuestionLockoutTimer();
 
-                this.questionLockoutTimerCounter = this.questionWrongLockoutDuration;
                 this.showQuestionView(false);
                 return;
             }
         }, ONE_SECOND);
     }
 
-    showTeamCodeInputView(isInitialization = false) {
+    showTeamCodeInputView(isBufferedView = false) {
         this.showLoaderContent(true);
         this.questionContent.getElement().innerHTML = this.createTeamCodeInputContent();
         
@@ -298,9 +320,12 @@ export class MCQGamePage extends Page {
             } else {
                 console.log("Team code incorrect, try again");
             }
+            return;
         });
 
-        if(!isInitialization || GameUtils.isGameInProgress(this.previousGameState)) this.showQuestionContent(false);
+        // !isBufferedView - we don't want to show the content if we buffer it; THOUGH we must make sure to call showQuestionContent again.
+        // isGameInProgress - we show the content straight away since the game has already started!!
+        if(!isBufferedView || GameUtils.isGameInProgress(this.previousGameState)) this.showQuestionContent();
     }
 
     createEndGameContent() {
@@ -309,11 +334,21 @@ export class MCQGamePage extends Page {
                 <div class="h hv-c vh-c">
                     Congrats team ${this.winningTeam} on defeating Baron!
                 </div>
+                <div class="h hv-c vh-c">
+                    <button id=${this.returnToLobbyButton.label}>
+                        Return to Lobby
+                    </button>
+                </div>
             `;
         } else {
             return `
                 <div class="h hv-c vh-c">
-                    Game is not running anymore, return to lobby!
+                    Game is closed, return to lobby!
+                </div>
+                <div class="h hv-c vh-c">
+                    <button id=${this.returnToLobbyButton.label}>
+                        Return to Lobby
+                    </button>
                 </div>
             `;
         }
@@ -345,7 +380,7 @@ export class MCQGamePage extends Page {
                     Congrats that's the correct answer!
                 </div>
                 <div class="h hv-c vh-c">
-                    Here's the baron attack code: ${baronCode}
+                    Here's the Baron Attack Code: ${baronCode}
                 </div>
                 <div class="h hv-c vh-c">
                     It will expire 5 mins from NOW, so use it wisely!
@@ -408,7 +443,7 @@ export class MCQGamePage extends Page {
         }).join("");
     }
 
-    showQuestionContent(shouldStartQuestionAnswerTimer) {
+    showQuestionContent(shouldStartQuestionAnswerTimer = false) {
         if(shouldStartQuestionAnswerTimer) {
             this.startQuestionAnswerTimer();
         }
@@ -427,7 +462,7 @@ export class MCQGamePage extends Page {
     createLoadingContent() {
         return `
             <div id="${this.loadingContent.label}" class="v vh-c hv-c">
-                <img id="mcq-game-page-room-loader" src="assets/ornn/ornn.gif"></img>
+                <img id="mcq-game-page-loader" src="assets/ornn/ornn.gif"></img>
             </div>
         `;
     }

@@ -13,8 +13,6 @@ export class AdminGamePage extends Page {
     }
 
     reset() {
-        this.roomId = null;
-        this.lobbyUserList = [];
         this.game = null;
         this.gameCommsBeingProcessedMap = {};
         this.isUserInitializedMap = {};
@@ -32,13 +30,17 @@ export class AdminGamePage extends Page {
         this.setRoomParametersAndPageState(setupArgs);
 
         this.game = new LeagueKookGame(this.app);
-        await this.game.initialize(setupArgs);
+        if(!await this.game.initialize(setupArgs)) {
+            await this.closeGame();
+            return;
+        }
 
         let mcqPlayers = this.game.getMCQPlayerList();
+        let baronPlayer = this.game.getBaronPlayer();
 
         // Send initialization comms to all mcq users
         mcqPlayers.forEach(mcq => {
-            let mcqUserId = mcq.fireUser.uid;
+            let mcqFireUserId = mcq.fireUser.uid;
             let assignedQuestion = mcq.getAssignedQuestion();
             let assignedTeam = mcq.getAssignedTeam();
 
@@ -46,12 +48,18 @@ export class AdminGamePage extends Page {
             teamCodes[TEAM.BLUE] = "1234";
             teamCodes[TEAM.RED] = "4321";
 
-            this.isUserInitializedMap[mcqUserId] = false;
+            this.isUserInitializedMap[mcqFireUserId] = false;
 
             let comm = new GameComm(GAME_ROLES.ADMIN, GAME_COMM_TYPES.INITIALIZE_MCQ_QUESTION_AND_CODES, {question: assignedQuestion.toFireFormat(), team: assignedTeam, teamCodes: teamCodes});
-            this.app.fire.sendGameCommToParticipant(this.roomId, mcqUserId, comm);
+            this.app.fire.sendGameCommToParticipant(this.roomId, mcqFireUserId, comm);
         });
 
+        let baronFireUserId = baronPlayer.fireUser.uid;
+        let baronComm = new GameComm(GAME_ROLES.ADMIN, GAME_COMM_TYPES.INITIALIZE_BARON, {health: baronPlayer.getHealth()});
+        this.app.fire.sendGameCommToParticipant(this.roomId, baronFireUserId, baronComm);
+        this.isUserInitializedMap[baronFireUserId] = false;
+        
+        // TODO: Refactor into fire?
         this.adminCommsListener = this.app.fire.attachAdminGameCommsListener(this.roomId, (comms) => {
             Object.entries(comms).filter(commInfo => {
                 return commInfo[1].commState === GAME_COMM_STATE.WAITING && !this.gameCommsBeingProcessedMap[commInfo[0]];
@@ -60,8 +68,9 @@ export class AdminGamePage extends Page {
             });
         });
 
-        this.gameEndButton.addEventListener(["click"], () => {
-            this.endGame();
+        this.gameEndButton.addEventListener(["click"], async () => {
+            await this.closeGame();
+            return;
         });
 
         super.setup();
@@ -121,6 +130,7 @@ export class AdminGamePage extends Page {
             if(baronPlayer) {
                 let isValid = false;
                 let damageAmount = 0;
+                let healthAfterDamage = 0;
                 let team = null;
                 let isLastHit = false;
 
@@ -129,9 +139,10 @@ export class AdminGamePage extends Page {
                     team = baronCodePackage.team;
                     damageAmount = this.game.generateBaronDamageAmount();
                     isLastHit = this.game.damageBaronAndVerifyDeath(damageAmount);
+                    healthAfterDamage = baronPlayer.getHealth();
                 }
 
-                let comm = new GameComm(GAME_ROLES.ADMIN, GAME_COMM_TYPES.REPORT_BARON_CODE, {isValid: isValid, damageAmount: 0, team: team, isLastHit: isLastHit});
+                let comm = new GameComm(GAME_ROLES.ADMIN, GAME_COMM_TYPES.REPORT_BARON_CODE, {isValid: isValid, damageAmount: damageAmount, healthAfterDamage: healthAfterDamage, team: team, isLastHit: isLastHit});
                 this.app.fire.sendGameCommToParticipant(this.roomId, baronPlayer.fireUser.uid, comm);
                 
                 if(isLastHit) {
@@ -159,10 +170,20 @@ export class AdminGamePage extends Page {
         this.game.addToBaronCodeHistory(baronCodePackage);
     }
 
-    endGame() {
-        this.app.fire.endGame(this.roomId);
+    async closeGame() {
+        await this.app.fire.closeGame(this.roomId);
         //Clear game comms
-        //Go back to lobby
+
+        //show game closed page
+        await this.app.goToPage(this.app.pages.lobby, {
+            roomId: this.roomId,
+            roomPasscode: this.roomPasscode,
+            isAdmin: true,
+            isParticipant: true,
+            isRoomLocked: false,
+            isReady: true,
+        });
+        return;
     }
 
     broadcastEndgameToMCQs(winningTeam) {
@@ -177,9 +198,11 @@ export class AdminGamePage extends Page {
 
     setRoomParametersAndPageState(setupArgs) {
         this.roomId = setupArgs.roomId;
+        this.roomPasscode = setupArgs.roomPasscode;
         this.lobbyUserList = setupArgs.lobbyUserList;
 
         this.pageState.roomId = this.roomId;
+        this.pageState.roomPasscode = this.roomPasscode;
         this.pageState.lobbyUserList = this.lobbyUserList;
     }
 

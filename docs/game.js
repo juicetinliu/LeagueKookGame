@@ -178,7 +178,6 @@ const RoomConstants = {
     numBaronRole: 1,
     minMCQRoleCount: 2,
 
-
     roomActiveDuration: 3 * 60 * 60 * ONE_SECOND, //3 hours until a room is considered "inactive"
 }
 
@@ -324,8 +323,15 @@ class BaronPlayer extends Player {
         this.health = maxHealth;
     }
 
+    getHealth() {
+        return this.health;
+    }
+
+    /**
+     * Constrains health to be at 0 if damage is greater than remaining health.
+     */
     receiveDamage(damageAmount) {
-        this.health -= damageAmount;
+        this.health = Math.max(this.health - damageAmount, 0);
     }
 
     isDead() {
@@ -405,8 +411,8 @@ export class LeagueKookGame {
         //Questionbank images urls are hardcoded (not stored/uploadable)
         this.questionBankId = "0wTG0Gewp2Xw2syg6KdQfnDnknb2_1700902705409";
 
-        this.redTeamQuestions = [];
-        this.blueTeamQuestions = [];
+        this.redTeamQuestionPool = [];
+        this.blueTeamQuestionPool = [];
 
         this.baronCodeHistory = [];
 
@@ -431,14 +437,22 @@ export class LeagueKookGame {
         let filteredBaronUserList = this.lobbyUserList.filter(user => {
             return user.role === GAME_ROLES.BARON
         });
-        if(filteredBaronUserList.length !== 1) throw `Expected one Baron user in lobby but got ${filteredBaronUserList}`;
+        if(filteredBaronUserList.length !== RoomConstants.numBaronRole) {
+            console.log(`Expected ${RoomConstants.numBaronRole} Baron user(s) from the lobby but got ${filteredBaronUserList}`);
+            return false;
+        }
         this.baronPlayer = new BaronPlayer(filteredBaronUserList[0], this.baronMaxHealth);
+
         this.mcqPlayerList = this.lobbyUserList.filter(user => {
             return user.role === GAME_ROLES.MCQ
         }).map(mcqUser => {
             return new MCQPlayer(mcqUser);
         });
         this.numMcqs = this.getMCQPlayerList().length;
+        if(this.numMcqs < RoomConstants.minMCQRoleCount) {
+            console.log(`Expected at least ${RoomConstants.minMCQRoleCount} MCQ user(s) from the lobby but got ${this.numMcqs}`);
+            return false;
+        }
 
         this.assignTeamsToUnassignedMCQs();
 
@@ -450,12 +464,15 @@ export class LeagueKookGame {
             let questionContent = questionInfo[1];
             try {
                 this.questions.push(FireMCQQuestion.createFromFire(questionId, questionContent));
-            } catch (e) { //do nothing for invalid-format questions
+            } catch (e) { //ignore invalidly-formatted questions
             }
         });
-        console.log(this.questions);
-        this.redTeamQuestions = this.questions.slice(0);
-        this.blueTeamQuestions = this.questions.slice(0);
+        if(this.questions.length < 1) {
+            console.log(`No questions available for the game`);
+            return false;
+        }
+        this.redTeamQuestionPool = this.questions.slice(0);
+        this.blueTeamQuestionPool = this.questions.slice(0);
 
         this.assignQuestionsToMCQs();
         console.log(this.getMCQPlayerList().map(mcq => {return mcq.toInfo()}));
@@ -469,6 +486,7 @@ export class LeagueKookGame {
         // this.assignTeamsToUnassignedMCQs();
         // this.assignQuestionsToMCQs();
         // console.log(this.mcqs.map(c => {return [c.team, c.assignedQuestion.title]}));
+        return true;
     }
 
     /** 
@@ -479,15 +497,15 @@ export class LeagueKookGame {
             if(mcq.needsQuestionAssignment()){
                 let isTeamBlue = mcq.getAssignedTeam() === TEAM.BLUE;
                 let teamQuestionList = isTeamBlue
-                    ? this.blueTeamQuestions : this.redTeamQuestions;
+                    ? this.blueTeamQuestionPool : this.redTeamQuestionPool;
                 if(teamQuestionList.length === 0) {
                     console.log(`Team ${mcq.getAssignedTeam()} ran out of questions. Refreshing list`);
                     if(isTeamBlue) {
-                        this.blueTeamQuestions = this.questions.slice(0);
-                        teamQuestionList = this.blueTeamQuestions;
+                        this.blueTeamQuestionPool = this.questions.slice(0);
+                        teamQuestionList = this.blueTeamQuestionPool;
                     } else {
-                        this.redTeamQuestions = this.questions.slice(0);
-                        teamQuestionList = this.redTeamQuestions;
+                        this.redTeamQuestionPool = this.questions.slice(0);
+                        teamQuestionList = this.redTeamQuestionPool;
                     }
                 } 
                 let question = popRandomElementFromArray(teamQuestionList);

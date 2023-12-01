@@ -13,11 +13,13 @@ export class IndexPage extends Page {
         if(!this.setupCompleted){
             this.joinRoomButton.addEventListener(["click"], async () => {
                 await this.app.goToPage(this.app.pages.joinRoom, {resetView: true});
+                return;
             });
             this.createRoomButton.addEventListener(["click"], async () => {
                 let roomDetails = await this.app.fire.createRoom();
                 console.log("=== GOING TO NEW LOBBY ===");
                 await this.app.goToPage(this.app.pages.lobby, roomDetails);
+                return;
             });
         }
         // Autojoin a room with #<roomId> in url
@@ -75,6 +77,7 @@ export class JoinRoomPage extends Page {
                     this.pageState.roomCodeInput = this.roomCodeInput.getElement().value;
                     this.app.savePageStateToHistory(true);
                 }
+                return;
             });
             this.roomCodeSubmitButton.addEventListener(["click"], async () => {
                 this.roomId = this.roomCodeInput.getElement().value;
@@ -104,6 +107,7 @@ export class JoinRoomPage extends Page {
                     console.log(`Room ${roomId} is not active`);
                     this.passCodeContentRow.hide();
                 }
+                return;
             });
 
             this.passCodeSubmitButton.addEventListener(["click"], async () => {
@@ -131,6 +135,7 @@ export class JoinRoomPage extends Page {
                     console.log(`Failed to join room ${roomId}. Verify password or whether room is locked or active.`)
                     this.passCodeContentRow.hide();
                 }
+                return;
             })
         }
         this.passCodeContentRow.hide();

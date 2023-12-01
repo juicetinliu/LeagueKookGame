@@ -120,6 +120,7 @@ export class LobbyPage extends Page {
                     this.saveGameStateToPageState(newGameState);
                     this.app.savePageStateToHistory(true);
                     await this.goToGamePage();
+                    return;
                 });
                 this.roomControlsLockToggleButton.addEventListener(["click"], async () => {
                     let newRoomLockState = !this.isRoomLocked;
@@ -130,6 +131,7 @@ export class LobbyPage extends Page {
                         this.pageState.isRoomLocked = this.isRoomLocked;
                         this.app.savePageStateToHistory(true);
                     }
+                    return;
                 });
             }
             this.roomControlsCloseButton.addEventListener(["click"], async () => {
@@ -137,6 +139,7 @@ export class LobbyPage extends Page {
                 this.pageState = {};
                 await this.app.goToPage(this.app.pages.index, {}, {}, false);
                 this.app.savePageStateToHistory(true);
+                return;
             });
         } else {
             if(this.isParticipant) {
@@ -153,6 +156,7 @@ export class LobbyPage extends Page {
                         this.pageState.isReady = this.isReady;
                         this.app.savePageStateToHistory(true);
                     }
+                    return;
                 });
             }
             this.roomControlsLeaveButton.addEventListener(["click"], async () => {
@@ -161,11 +165,13 @@ export class LobbyPage extends Page {
                 this.updateRoomWhenParticipantsChange(null);
                 await this.app.goToPage(this.app.pages.index, {}, {}, false);
                 this.app.savePageStateToHistory(true);
+                return;
             });
         }
         if(this.gameStarted) {
             this.roomGoToGameButton.addEventListener(["click"], async () => {
                 await this.goToGamePage();
+                return;
             })
         }
         super.setup();
@@ -181,21 +187,16 @@ export class LobbyPage extends Page {
 
     async goToGamePage() {
         let role = this.getCurrentUserGameRole();
-        let adminSetupArgs = {isAdmin: this.isAdmin};
-        let mcqSetupArgs = {roomId: this.roomId}
-        if(this.isAdmin) {
-            adminSetupArgs["lobbyUserList"] = this.lobbyUserList;
-            adminSetupArgs["roomId"] = this.roomId;
-        }
+        let gameSetupArgs = {roomId: this.roomId, isAdmin: this.isAdmin, lobbyUserList: this.lobbyUserList, roomPasscode: this.roomPasscode};
         console.log("Resetting lobby");
         this.reset();
         console.log("=== GOING TO GAME ===");
         if(role === GAME_ROLES.ADMIN) {
-            await this.app.goToPage(this.app.pages.adminGame, adminSetupArgs);
+            await this.app.goToPage(this.app.pages.adminGame, gameSetupArgs);
         } else if (role === GAME_ROLES.BARON) {
-            await this.app.goToPage(this.app.pages.baronGame, adminSetupArgs);
+            await this.app.goToPage(this.app.pages.baronGame, gameSetupArgs);
         } else if (role === GAME_ROLES.MCQ) {
-            await this.app.goToPage(this.app.pages.mcqGame, mcqSetupArgs);
+            await this.app.goToPage(this.app.pages.mcqGame, gameSetupArgs);
         } else {
             console.log(`Invalid role: ${role}. Not going into game`);
         }
@@ -450,6 +451,7 @@ class ParticipantProfileCard extends Component {
                 let roleSwitcher = this.page.participantRoleSwitcher;
                 roleSwitcher.updateRoleSwitcherOptions(this.uid, this.isAdmin, this.role);
                 roleSwitcher.show();
+                return;
             })
         }
         super.setup();
@@ -546,6 +548,7 @@ class ParticipantRoleSwitcher extends Component {
                 await this.app.fire.updateParticipantRole(this.page.roomId, uid, newRole);
             }
             this.hide();
+            return;
         });
     }
 

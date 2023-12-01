@@ -208,10 +208,10 @@ export class Fire {
     }
 
     /**
-     * **Admin only operation** - ends the game - goes back to lobby
+     * **Admin only operation** - closes the game - goes back to lobby
      */
-    async endGame(roomId) {
-        console.log("=== ENDING GAME ===");
+    async closeGame(roomId) {
+        console.log("=== CLOSING GAME ===");
         await this._setGameState(roomId, GAME_STATES.LOBBY);
     }
 
@@ -637,7 +637,7 @@ export const GAME_COMM_TYPES = {
      */
     INITIALIZE_MCQ_QUESTION_AND_CODES: "initializeMCQQuestionCodes",
     /**
-     * MCQ to ADMIN
+     * MCQ & BARON to ADMIN
      * Use this comm type to tell the admin initializing is ready
      */
     INITIALIZATION_DONE: "initializationDone",
@@ -732,6 +732,7 @@ export class GameComm {
             comm["data"] = {
                 isValid: this.commMessage.isValid,
                 damageAmount: this.commMessage.damageAmount,
+                healthAfterDamage: this.commMessage.healthAfterDamage,
                 team: this.commMessage.team,
                 isLastHit: this.commMessage.isLastHit,
             }
