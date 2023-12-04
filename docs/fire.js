@@ -453,6 +453,29 @@ export class Fire {
     }
 
     /**
+     * **Admin only operation** - Clear all comms for the room
+     * TODO: move to storage instead of deleting?
+     */  
+    async clearRoomComms(roomId, lobbyUserList) {
+        console.log(`Clearing comms in room ${roomId}`);
+        try {
+            await this._removeData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.GAME_COMMS_TO_ADMIN}`);
+        } catch (e) {
+            console.log(e);
+        }
+        try {
+            //awaiting all deletions to finish
+            await Promise.all(lobbyUserList.map(async (user) => {
+                this._removeData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_LOBBY_LIST}/${user.uid}/${this.PATHS.LOBBY_USER_GAME_COMMS}/${this.PATHS.GAME_COMMS_TO_USER}`);
+            }));
+        } catch (e) {
+            console.log(e);
+        }
+        return true;
+    }
+
+
+    /**
      * **Admin only operation** - Listens to game comms (from participants) changes
      */  
     attachAdminGameCommsListener(roomId, gameCommsChangedCallback) {

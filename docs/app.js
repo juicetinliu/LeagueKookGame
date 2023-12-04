@@ -58,7 +58,7 @@ export class App {
 
     async _setupCurrentPage(pageArgs = {}) {
         if(!this.currentPage.createCompleted) {
-            let currentPage = this.currentPage.create();
+            let currentPage = this.currentPage.create(pageArgs);
             this.mainWrapper.getElement().appendChild(currentPage);
         }
         await this.currentPage.setup(pageArgs);

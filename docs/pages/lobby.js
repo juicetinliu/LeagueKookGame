@@ -323,6 +323,7 @@ export class LobbyPage extends Page {
             participantsPanelContent += card.create();
         })
         return `
+            <div id="lobby-room-participants-background-image"></div>
             <div id="lobby-room-participants-content" class="h vh-t hv-l">
                 ${participantsPanelContent}
             </div>

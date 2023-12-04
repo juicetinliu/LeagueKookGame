@@ -17,10 +17,10 @@ export class Page extends Component {
         super.hide();
     }
 
-    show() {
+    show(savePageState = true) {
         //common page functions
         this.isShowing = true;
-        this.app.savePageStateToHistory(true);
+        if(savePageState) this.app.savePageStateToHistory(true);
         super.show();
     }
 

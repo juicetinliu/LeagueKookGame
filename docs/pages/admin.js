@@ -6,9 +6,13 @@ import { GAME_COMM_STATE, GAME_COMM_TYPES, GameComm } from "../fire.js";
 export class AdminGamePage extends Page {
     constructor(app) {
         super("admin-game-page", app);
+        this.pageWrapper = new Element("id", "admin-game-page-wrapper");
 
         this.gameEndButton = new Element("id", "admin-game-end-button");
-        
+
+        this.adminBaronViewSwitchButtonWrapper = new Element("id", "admin-baron-view-switch-button-wrapper");
+        this.adminBaronViewSwitchButton = new Element("id", "admin-baron-view-switch-button");
+
         this.reset();
     }
 
@@ -16,6 +20,7 @@ export class AdminGamePage extends Page {
         this.game = null;
         this.gameCommsBeingProcessedMap = {};
         this.isUserInitializedMap = {};
+
         if(this.adminCommsListener) {
             this.adminCommsListener(); //unsubscribes the listener.
             console.log("Unsubscribed previous admin GameComms listener");
@@ -29,14 +34,43 @@ export class AdminGamePage extends Page {
         this.reset();
         this.setRoomParametersAndPageState(setupArgs);
 
+        console.log(`roomId: ${this.roomId}, winningTeam: ${this.winningTeam}, gameEnded: ${this.gameEnded}`);
+        if(this.winningTeam || this.gameEnded) {
+            return;
+        }
+
+        if(this.isBaron) {
+            this.baronPage = this.app.pages.baronGame;
+            this.adminBaronViewSwitchButtonWrapper.getElement().innerHTML = this.createBaronViewSwitchButton();
+            this.adminBaronViewSwitchButtonWrapper.show();
+
+            this.adminBaronViewSwitchButton.addEventListener(["click"], () => {
+                this.baronPage.show();
+                this.hide();
+                return;
+            });
+        } else {
+            this.adminBaronViewSwitchButtonWrapper.hide();
+        }
+
         this.game = new LeagueKookGame(this.app);
         if(!await this.game.initialize(setupArgs)) {
             await this.closeGame();
             return;
         }
 
+        // Clear game comms from previous game:
+        this.app.fire.clearRoomComms(this.roomId, this.lobbyUserList);
+
         let mcqPlayers = this.game.getMCQPlayerList();
         let baronPlayer = this.game.getBaronPlayer();
+
+        // First initialize player map (before starting game)
+        mcqPlayers.forEach(mcq => {
+            let mcqFireUserId = mcq.fireUser.uid;
+            this.isUserInitializedMap[mcqFireUserId] = false;
+        });
+        this.isUserInitializedMap[this.getBaronFireUserUidWithBaronFallback(baronPlayer)] = false;
 
         // Send initialization comms to all mcq users
         mcqPlayers.forEach(mcq => {
@@ -48,23 +82,19 @@ export class AdminGamePage extends Page {
             teamCodes[TEAM.BLUE] = "1234";
             teamCodes[TEAM.RED] = "4321";
 
-            this.isUserInitializedMap[mcqFireUserId] = false;
-
             let comm = new GameComm(GAME_ROLES.ADMIN, GAME_COMM_TYPES.INITIALIZE_MCQ_QUESTION_AND_CODES, {question: assignedQuestion.toFireFormat(), team: assignedTeam, teamCodes: teamCodes});
             this.app.fire.sendGameCommToParticipant(this.roomId, mcqFireUserId, comm);
         });
 
-        let baronFireUserId = baronPlayer.fireUser.uid;
-        let baronComm = new GameComm(GAME_ROLES.ADMIN, GAME_COMM_TYPES.INITIALIZE_BARON, {health: baronPlayer.getHealth()});
-        this.app.fire.sendGameCommToParticipant(this.roomId, baronFireUserId, baronComm);
-        this.isUserInitializedMap[baronFireUserId] = false;
-        
+        let baronInitializeComm = new GameComm(GAME_ROLES.ADMIN, GAME_COMM_TYPES.INITIALIZE_BARON, {health: baronPlayer.getHealth()});
+        this.sendGameCommToBaronWithBaronFallback(baronPlayer, baronInitializeComm);
+
         // TODO: Refactor into fire?
         this.adminCommsListener = this.app.fire.attachAdminGameCommsListener(this.roomId, (comms) => {
-            Object.entries(comms).filter(commInfo => {
+            Object.entries(comms).filter((commInfo) => {
                 return commInfo[1].commState === GAME_COMM_STATE.WAITING && !this.gameCommsBeingProcessedMap[commInfo[0]];
             }).forEach(commInfo => {
-                this.proccessGameComms(commInfo[0], commInfo[1]);
+                this.processGameComms(commInfo[0], commInfo[1]);
             });
         });
 
@@ -76,14 +106,14 @@ export class AdminGamePage extends Page {
         super.setup();
     }
 
-    async proccessGameComms(gameCommId, gameComm) {
+    async processGameComms(gameCommId, gameComm) {
+        console.log(`Processing GameComm ${gameCommId}: ${Object.entries(gameComm.data)}`)
         this.gameCommsBeingProcessedMap[gameCommId] = gameComm;
         if(gameComm.commType === GAME_COMM_TYPES.INITIALIZATION_DONE) {
             let fireUserUid = gameComm.data.fireUserUid;
             this.isUserInitializedMap[fireUserUid] = true;
             if(Object.values(this.isUserInitializedMap).every(i => i)) {
                 // Start game once all users are intialized
-                // TODO: WAIT FOR BARON TO BE INITIALIZED TOO
                 this.app.fire.startGame(this.roomId);
             }
         } else if(gameComm.commType === GAME_COMM_TYPES.VERIFY_MCQ_ANSWER) {
@@ -143,17 +173,47 @@ export class AdminGamePage extends Page {
                 }
 
                 let comm = new GameComm(GAME_ROLES.ADMIN, GAME_COMM_TYPES.REPORT_BARON_CODE, {isValid: isValid, damageAmount: damageAmount, healthAfterDamage: healthAfterDamage, team: team, isLastHit: isLastHit});
-                this.app.fire.sendGameCommToParticipant(this.roomId, baronPlayer.fireUser.uid, comm);
-                
+                this.sendGameCommToBaronWithBaronFallback(baronPlayer, comm);
+
                 if(isLastHit) {
                     this.broadcastEndgameToMCQs(team);
+
+                    this.winningTeam = team;
+                    this.gameEnded = true;
+                    this.pageState.winningTeam = this.winningTeam;
+                    this.pageState.gameEnded = this.gameEnded;
+                    this.app.savePageStateToHistory(true);
                 }
             }
         } else {
             console.log(`No Admin action done for comm type ${this.commType}`);
             return;
         }
-        this.app.fire.setAdminGameCommAsProcessed(this.roomId, gameCommId);
+        await this.markGameCommProcessedWithAdminFallback(gameCommId);
+        
+        if(this.winningTeam || this.gameEnded) {
+            await this.app.fire.closeGame(this.roomId);
+        }
+    }
+
+    getBaronFireUserUidWithBaronFallback(baronPlayer) {
+        return this.isBaron ? GAME_ROLES.ADMIN : baronPlayer.fireUser.uid;
+    }
+
+    async sendGameCommToBaronWithBaronFallback(baronPlayer, comm) {
+        if(this.isBaron) {
+            await this.baronPage.processGameComms(comm.id, comm.toFireFormat());
+        } else {
+            await this.app.fire.sendGameCommToParticipant(this.roomId, baronPlayer.fireUser.uid, comm);
+        }
+    }
+
+    async markGameCommProcessedWithAdminFallback(gameCommId) {
+        if(this.isBaron && (gameCommId.split("_")[1] === GAME_ROLES.ADMIN)) {
+            console.log(`No need to mark comm ${gameCommId} as processed since user is also Baron.`)
+        } else {
+            await this.app.fire.setAdminGameCommAsProcessed(this.roomId, gameCommId);
+        }
     }
 
     async registerBaronCode(baronCode, mcqPlayer) {
@@ -199,18 +259,34 @@ export class AdminGamePage extends Page {
     setRoomParametersAndPageState(setupArgs) {
         this.roomId = setupArgs.roomId;
         this.roomPasscode = setupArgs.roomPasscode;
+        this.isBaron = setupArgs.isBaron;
         this.lobbyUserList = setupArgs.lobbyUserList;
+        this.winningTeam = setupArgs.winningTeam;
+        this.gameEnded = setupArgs.gameEnded;
 
         this.pageState.roomId = this.roomId;
         this.pageState.roomPasscode = this.roomPasscode;
+        this.pageState.isBaron = this.isBaron;
         this.pageState.lobbyUserList = this.lobbyUserList;
+        this.pageState.winningTeam = this.winningTeam;
+        this.pageState.gameEnded = this.gameEnded;
+    }
+
+    createBaronViewSwitchButton() {
+        return `
+            <button id="${this.adminBaronViewSwitchButton.label}">
+                Switch to Baron view
+            </button>
+        `;
     }
 
     create() {        
         let page = documentCreateElement("div", this.label, "page");
         
         page.innerHTML = `
-            <div id="admin-game-page-content" class="v vh-c hv-c">
+            <div id="${this.pageWrapper.label}" class="v vh-c hv-c">
+                <div id="${this.adminBaronViewSwitchButtonWrapper.label}" class="h hv-c vh-c">
+                </div>
                 <div class="h hv-c vh-c panel">
                     <button id="${this.gameEndButton.label}">
                         End!
@@ -228,6 +304,6 @@ export class AdminGamePage extends Page {
     }
 
     show() {
-        super.show();
+        super.show(false);
     }
 }

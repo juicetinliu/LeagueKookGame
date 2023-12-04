@@ -57,7 +57,7 @@ export class MCQGamePage extends Page {
         this.reset();
     }
 
-    reset() {
+    reset(resetPageState = true) {
         this.gameCommsBeingProcessedMap = {};
 
         this.assignedQuestion = null;
@@ -85,16 +85,16 @@ export class MCQGamePage extends Page {
         }
         this.participantCommsListener = null;
         this.gameStateListener = null;
-        super.reset();
+        if(resetPageState) super.reset();
     }
 
     async setup(setupArgs) {
         console.log("Setting up MCQ game page");
         this.reset();
         this.setRoomParametersAndPageState(setupArgs);
-        console.log(setupArgs);
 
-        if(!this.roomId || this.winningTeam) {
+        if(!this.roomId || this.winningTeam || this.gameEnded) {
+            console.log(`roomId: ${this.roomId}, winningTeam: ${this.winningTeam}, gameEnded: ${this.gameEnded}`);
             this.showEndGameView();
         } else {
             // TODO: Refactor into fire?
@@ -102,7 +102,7 @@ export class MCQGamePage extends Page {
                 Object.entries(comms).filter(commInfo => {
                     return commInfo[1].commState === GAME_COMM_STATE.WAITING && !this.gameCommsBeingProcessedMap[commInfo[0]];
                 }).forEach(commInfo => {
-                    this.proccessGameComms(commInfo[0], commInfo[1]);
+                    this.processGameComms(commInfo[0], commInfo[1]);
                 });
             });
 
@@ -112,7 +112,9 @@ export class MCQGamePage extends Page {
                     this.showQuestionContent();
                 } else if (GameUtils.hasGameEnded(gameState)) {
                     console.log("=== GAME ENDED ===");
-                    this.reset();
+                    this.reset(false);
+                    this.gameEnded = true;
+                    this.pageState.gameEnded = this.gameEnded;
                     this.app.savePageStateToHistory(true);
                     this.showEndGameView();
                     //Go back to lobby
@@ -123,7 +125,7 @@ export class MCQGamePage extends Page {
         super.setup();
     }
 
-    async proccessGameComms(gameCommId, gameComm) {
+    async processGameComms(gameCommId, gameComm) {
         this.gameCommsBeingProcessedMap[gameCommId] = gameComm;
         if(gameComm.commType === GAME_COMM_TYPES.INITIALIZE_MCQ_QUESTION_AND_CODES) {
             let commQuestion = gameComm.data.question;
@@ -163,10 +165,12 @@ export class MCQGamePage extends Page {
         this.roomId = setupArgs.roomId;
         this.roomPasscode = setupArgs.roomPasscode;
         this.winningTeam = setupArgs.winningTeam;
+        this.gameEnded = setupArgs.gameEnded;
 
         this.pageState.roomId = this.roomId;
         this.pageState.roomPasscode = this.roomPasscode;
         this.pageState.winningTeam = this.winningTeam;
+        this.pageState.gameEnded = this.gameEnded;
     }
 
     setTeamCodes(teamCodes) {
