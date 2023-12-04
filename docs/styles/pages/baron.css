@@ -1,4 +1,64 @@
-#baron-game-page-loader {
+#baron-game-page-loader, #baron-game-baron-boss {
     width: 250px;
     border-radius: var(--roundness);
+}
+
+#baron-game-page-wrapper, #baron-game-page-baron-content {
+    gap: 20px;
+}
+
+#baron-code-input {
+    width: 300px;
+}
+
+#baron-health-bar-text-wrapper {
+    position: relative;
+}
+
+#baron-health-bar-text {
+    text-align: center;
+
+    border-right: 2px solid var(--panel-primary-border);
+    border-left: 2px solid var(--panel-primary-border);
+    padding: 0px 5px;
+    background: linear-gradient(transparent 0%, black 50%);
+    width: 42px;
+}
+
+.baron-health-bar-text-ornaments {
+    position: absolute;
+    width: 12;
+    height: 12;
+    background: black;
+    border-top: 2px solid var(--panel-primary-border);
+}
+
+.baron-health-bar-text-ornaments.left {
+    border-left: 2px solid var(--panel-primary-border);
+    border-top-left-radius: 100%;
+    left: 87px;
+}
+
+.baron-health-bar-text-ornaments.right {
+    border-right: 2px solid var(--panel-primary-border);
+    border-top-right-radius: 100%;
+    right: 87px;
+}
+
+#baron-health-bar {
+    position: relative;
+    width: 250px;
+    background: black;
+    height: 20px;
+    border: 2px solid var(--panel-primary-border);
+    overflow: hidden;
+}
+
+
+#baron-health-bar-remaining-health {
+    background: #cf3b12;
+    width: 100%;
+    position: absolute;
+    height: 100%;
+    transition: width 0.5s ease-in-out;
 }

@@ -1,7 +1,7 @@
 import { Page } from "../page.js";
 import { Element, documentCreateElement } from "../components.js";
 import { GAME_COMM_STATE, GAME_COMM_TYPES, GameComm } from "../fire.js";
-import { GameConstants, GameUtils } from "../game.js";
+import { GameUtils } from "../game.js";
 import { FireMCQQuestion, MCQ_ANSWER } from "../question.js";
 import { ONE_SECOND } from "../util.js";
 
@@ -66,8 +66,8 @@ export class MCQGamePage extends Page {
         this.previousGameState = null;
 
         //Initialize durations through ADMIN call?
-        this.questionAnswerWindowDuration = GameConstants.questionAnswerWindowDuration;
-        this.questionWrongLockoutDuration = GameConstants.questionWrongLockoutDuration;
+        this.questionAnswerWindowDuration = null;
+        this.questionWrongLockoutDuration = null;
 
         this.questionAnswerTimerCounter = 0;
         this.resetQuestionAnswerTimer();
@@ -111,13 +111,14 @@ export class MCQGamePage extends Page {
                 if(GameUtils.isGameInProgress(gameState) && this.assignedQuestion !== null && this.assignedTeam !== null) {
                     this.showQuestionContent();
                 } else if (GameUtils.hasGameEnded(gameState)) {
-                    console.log("=== GAME ENDED ===");
-                    this.reset(false);
-                    this.gameEnded = true;
-                    this.pageState.gameEnded = this.gameEnded;
-                    this.app.savePageStateToHistory(true);
-                    this.showEndGameView();
-                    //Go back to lobby
+                    if(GameUtils.isGameInLobby(gameState)) {
+                        console.log("=== GAME CLOSED ===");
+                        this.reset(false);
+                        this.gameEnded = true;
+                        this.pageState.gameEnded = this.gameEnded;
+                        this.app.savePageStateToHistory(true);
+                        this.showEndGameView();
+                    }
                 }
             });
             this.showLoaderContent();
@@ -133,6 +134,7 @@ export class MCQGamePage extends Page {
             let teamCodes = gameComm.data.teamCodes;
             let assignedQuestion = FireMCQQuestion.createFromFire(commQuestion.id, commQuestion);
             this.setTeamCodes(teamCodes);
+            this.setQuestionDurations(gameComm.data.answerDuration, gameComm.data.lockoutDuration)
             this.setAssignedQuestionAndTeam(assignedQuestion, assignedTeam);
 
             let comm = new GameComm(this.app.fire.fireUser.uid, GAME_COMM_TYPES.INITIALIZATION_DONE, {fireUserUid: this.app.fire.fireUser.uid});
@@ -149,6 +151,7 @@ export class MCQGamePage extends Page {
 
             this.showTeamCodeInputView();
         } else if(gameComm.commType === GAME_COMM_TYPES.NOTIFY_MCQ_END_GAME) {
+            console.log("=== GAME ENDED ===");
             this.winningTeam = gameComm.data.winningTeam;
             this.pageState.winningTeam = this.winningTeam;
             this.app.savePageStateToHistory(true);
@@ -175,6 +178,11 @@ export class MCQGamePage extends Page {
 
     setTeamCodes(teamCodes) {
         this.teamCodes = teamCodes;
+    }
+
+    setQuestionDurations(answerDuration, lockoutDuration) {
+        this.questionAnswerWindowDuration = answerDuration;
+        this.questionWrongLockoutDuration = lockoutDuration;
     }
 
     setAssignedQuestionAndTeam(assignedQuestion, assignedTeam) {
@@ -312,9 +320,19 @@ export class MCQGamePage extends Page {
     }
 
     showTeamCodeInputView(isBufferedView = false) {
+        if(this.teamCodeInputErrorTimeout) {
+            clearTimeout(this.teamCodeInputErrorTimeout);
+        }
         this.showLoaderContent(true);
         this.questionContent.getElement().innerHTML = this.createTeamCodeInputContent();
         
+        this.teamCodeInput.addEventListener(["input"], () => {
+            this.teamCodeInput.getElement().classList.remove("wrong");
+            if(this.teamCodeInputErrorTimeout) {
+                clearTimeout(this.teamCodeInputErrorTimeout);
+            }
+            return;
+        });
         this.teamCodeSubmitButton.addEventListener(["click"], () => {
             let teamCodeInputValue = this.teamCodeInput.getElement().value;
 
@@ -322,6 +340,13 @@ export class MCQGamePage extends Page {
                 console.log("Team code was correct, showing question");
                 this.showQuestionView(true);
             } else {
+                if(this.teamCodeInputErrorTimeout) {
+                    clearTimeout(this.teamCodeInputErrorTimeout);
+                }
+                this.teamCodeInput.getElement().classList.add("wrong");
+                this.teamCodeInputErrorTimeout = setTimeout(() => {
+                    this.teamCodeInput.getElement().classList.remove("wrong");
+                }, 500);
                 console.log("Team code incorrect, try again");
             }
             return;

@@ -220,7 +220,7 @@ export const GameUtils = {
     isGameInProgress: (gameState) => {
         return gameState === GAME_STATES.GAME_STARTED;
     },
-    isLobbyOpen: (gameState) => { 
+    isGameInLobby: (gameState) => {
         return gameState === GAME_STATES.LOBBY;
     },
     generateBaronCode: () => {
@@ -228,7 +228,7 @@ export const GameUtils = {
     },
     hasGameEnded: (gameState) => {
         return gameState === GAME_STATES.END || gameState === GAME_STATES.LOBBY;
-    }
+    },
 }
 
 export const GAME_ROLES = {
@@ -281,7 +281,7 @@ export const BaronDamageGenerator = {
         return Math.floor(Math.random() * (max - min + 1)) + min;
     },
     /**
-     * Custom distribution (weightTable contains weighting for each number )
+     * Custom distribution (weightTable contains weighting for each number?)
      */
     CUSTOM: (min, max) => {
         //??
@@ -289,7 +289,7 @@ export const BaronDamageGenerator = {
 }
 
 export const GameConstants = {
-    defaultMinimumTeamComputers: RoomConstants.minMCQRoleCount/2,
+    defaultMinimumTeamComputers: Math.round(RoomConstants.minMCQRoleCount/2),
     defaultRandomSequenceMultiplier: 2,
 
     baronCodeLength: 4,
@@ -388,13 +388,73 @@ class MCQPlayer extends Player {
     }
 }
 
+export class LeagueKookGameSettings {
+    constructor(
+        teamCodes = null,
+        baronMaxHealth = null,
+        baronCodeActiveDuration = null,
+        baronCodeMaxDamageAmount = null,
+        baronCodeMinDamageAmount = null,
+        questionAnswerWindowDuration = null,
+        questionWrongLockoutDuration = null) {
+        this.teamCodes = teamCodes ? teamCodes : {};
+        this.teamCodes[TEAM.BLUE] = "1234";
+        this.teamCodes[TEAM.RED] = "4321";
+
+        this.baronMaxHealth = baronMaxHealth ? baronMaxHealth : GameConstants.baronStartingHealthAmount;
+        this.baronCodeActiveDuration = baronCodeActiveDuration ? baronCodeActiveDuration : GameConstants.baronCodeActiveDuration;
+        this.baronCodeMaxDamageAmount = baronCodeMaxDamageAmount ? baronCodeMaxDamageAmount : GameConstants.baronCodeMaxDamageAmount;
+        this.baronCodeMinDamageAmount = baronCodeMinDamageAmount ? baronCodeMinDamageAmount : GameConstants.baronCodeMinDamageAmount;
+
+        this.questionAnswerWindowDuration = questionAnswerWindowDuration ? questionAnswerWindowDuration : GameConstants.questionAnswerWindowDuration;
+        this.questionWrongLockoutDuration = questionWrongLockoutDuration ? questionWrongLockoutDuration : GameConstants.questionWrongLockoutDuration;
+
+        this.minTeamComputers = GameConstants.defaultMinimumTeamComputers;
+        this.randomSeqMultiplier = GameConstants.defaultRandomSequenceMultiplier;
+        this.baronDamageGenerator = GameConstants.defaultBaronDamageGenerator;
+    }
+
+    setTeamCode(team, code) {
+
+    }
+
+    getTeamCodes() {
+        return this.teamCodes;
+    }
+
+    static createFromFire(data) {
+        return new LeagueKookGameSettings(
+            data.teamCodes,
+            data.baronMaxHealth,
+            data.baronCodeActiveDuration,
+            data.baronCodeMaxDamageAmount,
+            data.baronCodeMinDamageAmount,
+            data.questionAnswerWindowDuration,
+            data.questionWrongLockoutDuration);
+    }
+
+    toFireFormat() {
+        return {
+            teamCodes: this.teamCodes,
+            baronMaxHealth: this.baronMaxHealth,
+            baronCodeActiveDuration: this.baronCodeActiveDuration,
+            baronCodeMaxDamageAmount: this.baronCodeMaxDamageAmount,
+            baronCodeMinDamageAmount: this.baronCodeMinDamageAmount,
+            minTeamComputers: this.minTeamComputers,
+            randomSeqMultiplier: this.randomSeqMultiplier,
+            baronDamageGenerator: this.baronDamageGenerator,
+        }
+    }
+}
+
 
 /**
  * This game is only intialized/maintained/run by the ADMIN role.
  */
 export class LeagueKookGame {
-    constructor(app) {
+    constructor(app, gameSettings) {
         this.app = app;
+        this.settings = gameSettings;
 
         this.reset();
     }
@@ -416,14 +476,14 @@ export class LeagueKookGame {
 
         this.baronCodeHistory = [];
 
-        this.baronMaxHealth = GameConstants.baronStartingHealthAmount;
-        this.baronCodeActiveDuration = GameConstants.baronCodeActiveDuration;
-        this.baronCodeMaxDamageAmount = GameConstants.baronCodeMaxDamageAmount;
-        this.baronCodeMinDamageAmount = GameConstants.baronCodeMinDamageAmount;
+        this.baronMaxHealth = this.settings.baronMaxHealth;
+        this.baronCodeActiveDuration = this.settings.baronCodeActiveDuration;
+        this.baronCodeMaxDamageAmount = this.settings.baronCodeMaxDamageAmount;
+        this.baronCodeMinDamageAmount = this.settings.baronCodeMinDamageAmount;
 
-        this.minTeamComputers = GameConstants.defaultMinimumTeamComputers;
-        this.randomSeqMultiplier = GameConstants.defaultRandomSequenceMultiplier;
-        this.baronDamageGenerator = GameConstants.defaultBaronDamageGenerator;
+        this.minTeamComputers = this.settings.minTeamComputers;
+        this.randomSeqMultiplier = this.settings.randomSeqMultiplier;
+        this.baronDamageGenerator = this.settings.baronDamageGenerator;
     }
 
     setInitialParams(setupArgs) {

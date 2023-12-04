@@ -1,6 +1,6 @@
 import { Page } from "../page.js";
 import { Element, documentCreateElement } from "../components.js";
-import { GAME_ROLES, LeagueKookGame, TEAM } from "../game.js";
+import { GAME_ROLES, LeagueKookGame, LeagueKookGameSettings, TEAM } from "../game.js";
 import { GAME_COMM_STATE, GAME_COMM_TYPES, GameComm } from "../fire.js";
 
 export class AdminGamePage extends Page {
@@ -53,7 +53,8 @@ export class AdminGamePage extends Page {
             this.adminBaronViewSwitchButtonWrapper.hide();
         }
 
-        this.game = new LeagueKookGame(this.app);
+        // TODO: Settings page for game!
+        this.game = new LeagueKookGame(this.app, new LeagueKookGameSettings());
         if(!await this.game.initialize(setupArgs)) {
             await this.closeGame();
             return;
@@ -78,11 +79,15 @@ export class AdminGamePage extends Page {
             let assignedQuestion = mcq.getAssignedQuestion();
             let assignedTeam = mcq.getAssignedTeam();
 
-            let teamCodes = {}
-            teamCodes[TEAM.BLUE] = "1234";
-            teamCodes[TEAM.RED] = "4321";
+            let teamCodes = this.game.settings.getTeamCodes();
 
-            let comm = new GameComm(GAME_ROLES.ADMIN, GAME_COMM_TYPES.INITIALIZE_MCQ_QUESTION_AND_CODES, {question: assignedQuestion.toFireFormat(), team: assignedTeam, teamCodes: teamCodes});
+            let comm = new GameComm(GAME_ROLES.ADMIN, GAME_COMM_TYPES.INITIALIZE_MCQ_QUESTION_AND_CODES, {
+                    question: assignedQuestion.toFireFormat(), 
+                    team: assignedTeam, 
+                    teamCodes: teamCodes, 
+                    answerDuration: this.game.settings.questionAnswerWindowDuration, 
+                    lockoutDuration: this.game.settings.questionWrongLockoutDuration,
+                });
             this.app.fire.sendGameCommToParticipant(this.roomId, mcqFireUserId, comm);
         });
 
@@ -183,6 +188,8 @@ export class AdminGamePage extends Page {
                     this.pageState.winningTeam = this.winningTeam;
                     this.pageState.gameEnded = this.gameEnded;
                     this.app.savePageStateToHistory(true);
+
+                    await this.app.fire.endGame(this.roomId);
                 }
             }
         } else {
@@ -190,10 +197,6 @@ export class AdminGamePage extends Page {
             return;
         }
         await this.markGameCommProcessedWithAdminFallback(gameCommId);
-        
-        if(this.winningTeam || this.gameEnded) {
-            await this.app.fire.closeGame(this.roomId);
-        }
     }
 
     getBaronFireUserUidWithBaronFallback(baronPlayer) {
@@ -231,7 +234,7 @@ export class AdminGamePage extends Page {
     }
 
     async closeGame() {
-        await this.app.fire.closeGame(this.roomId);
+        await this.app.fire.leaveGame(this.roomId);
         //Clear game comms
 
         //show game closed page

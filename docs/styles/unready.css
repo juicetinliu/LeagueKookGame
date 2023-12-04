@@ -9,22 +9,6 @@
 
     #image-text {
         font-size: var(--font-small);
-        color: var(--text-color-faded);
-    }
-}
-
-.desktop-app-unsupported {
-    #main-content {
-        gap: 20px
-    }
-
-    #ornn-wip {
-        width: 250px;
-        border-radius: var(--roundness);
-    }
-
-    #image-text {
-        font-size: var(--font-small);
-        color: var(--text-color-faded);
+        color: var(--secondary-text-color);
     }
 }

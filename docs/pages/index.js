@@ -65,7 +65,13 @@ export class JoinRoomPage extends Page {
     }
 
     setup(args) {
-        if(args && args.resetView) { 
+        if(this.roomCodeInputErrorTimeout) {
+            clearTimeout(this.roomCodeInputErrorTimeout);
+        }
+        if(this.passCodeInputErrorTimeout) {
+            clearTimeout(this.passCodeInputErrorTimeout);
+        }
+        if(args && args.resetView) {
             this.roomCodeInput.getElement().value = "";
             this.passCodeInput.getElement().value = "";
             this.pageState.roomCodeInput = this.roomCodeInput.getElement().value;
@@ -73,6 +79,10 @@ export class JoinRoomPage extends Page {
         }
         if(!this.setupCompleted){
             this.roomCodeInput.addEventListener(["input"], () => {
+                this.roomCodeInput.getElement().classList.remove("wrong");
+                if(this.roomCodeInputErrorTimeout) {
+                    clearTimeout(this.roomCodeInputErrorTimeout);
+                }
                 if(this.isShowing) {
                     this.pageState.roomCodeInput = this.roomCodeInput.getElement().value;
                     this.app.savePageStateToHistory(true);
@@ -104,6 +114,13 @@ export class JoinRoomPage extends Page {
                     }
                     this.passCodeContentRow.show();
                 } else {
+                    if(this.roomCodeInputErrorTimeout) {
+                        clearTimeout(this.roomCodeInputErrorTimeout);
+                    }
+                    this.roomCodeInput.getElement().classList.add("wrong");
+                    this.roomCodeInputErrorTimeout = setTimeout(() => {
+                        this.roomCodeInput.getElement().classList.remove("wrong");
+                    }, 500);
                     console.log(`Room ${roomId} is not active`);
                     this.passCodeContentRow.hide();
                 }
@@ -132,6 +149,13 @@ export class JoinRoomPage extends Page {
                     });
                     return;
                 } else {
+                    if(this.roomCodeInputErrorTimeout) {
+                        clearTimeout(this.roomCodeInputErrorTimeout);
+                    }
+                    this.roomCodeInput.getElement().classList.add("wrong");
+                    this.roomCodeInputErrorTimeout = setTimeout(() => {
+                        this.roomCodeInput.getElement().classList.remove("wrong");
+                    }, 500);
                     console.log(`Failed to join room ${roomId}. Verify password or whether room is locked or active.`)
                     this.passCodeContentRow.hide();
                 }

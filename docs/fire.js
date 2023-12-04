@@ -148,6 +148,21 @@ export class Fire {
         return true;
     }
 
+    /**
+     * **Admin only operation** - Update the room active time
+     * TODO: USE THIS WHEN ADMIN IS IN GAME
+     */  
+    async updateRoomActiveTime(roomId) {
+        console.log(`Closing room ${roomId}`);
+        try {
+            await this._setData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_ACTIVE_TIME}`, Date.now()); 
+            console.log(`Room ${roomId} is closed`);
+        } catch (e) {
+            console.log(e);
+        }
+        return true;
+    }
+
     async getParticipantOfRoom(roomId) {
         console.log(`Fetching participant information for ${this.fireUser.uid}`);
         try {
@@ -208,11 +223,20 @@ export class Fire {
     }
 
     /**
-     * **Admin only operation** - closes the game - goes back to lobby
+     * **Admin only operation** - goes to lobby
      */
-    async closeGame(roomId) {
-        console.log("=== CLOSING GAME ===");
+    async leaveGame(roomId) {
+        console.log("=== LEAVING GAME ===");
         await this._setGameState(roomId, GAME_STATES.LOBBY);
+    }
+
+
+    /**
+     * **Admin only operation** - closes the game - sets to game END state
+     */
+    async endGame(roomId) {
+        console.log("=== ENDING GAME ===");
+        await this._setGameState(roomId, GAME_STATES.END);
     }
 
     /**
@@ -369,7 +393,7 @@ export class Fire {
     attachAdminWaitListListener(roomId, gameState) {
         console.log(`Attaching admin listener for room ${roomId} WaitList`);
         var callback = async (data) => {
-            if(GameUtils.isLobbyOpen(gameState)) {
+            if(GameUtils.isGameInLobby(gameState)) {
                 console.log(`Change detected in Waitlist for room ${roomId}`)
                 await this.moveWaitListUserToLobby(roomId, data);
             }
@@ -723,6 +747,8 @@ export class GameComm {
                 question: this.commMessage.question,
                 team: this.commMessage.team,
                 teamCodes: this.commMessage.teamCodes,
+                answerDuration: this.commMessage.answerDuration,
+                lockoutDuration: this.commMessage.lockoutDuration,
             }
         } else if(this.commType === GAME_COMM_TYPES.INITIALIZATION_DONE) {
             comm["data"] = {

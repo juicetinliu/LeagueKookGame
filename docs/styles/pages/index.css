@@ -13,3 +13,7 @@
 #join-room-pass-content-row {
     gap: 15px;
 }
+
+#join-room-room-code-submit-button, #join-room-pass-code-submit-button {
+    width: 150px;
+}

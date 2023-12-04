@@ -4,9 +4,15 @@
 #lobby-room-info-panel {
 }
 
+.lobby-page-room-info-panel-row {
+    gap: 5px;
+}
+
 #lobby-participants-panel {
     height: 200px;
-    width: 400px;
+    width: 420px; /* Accommodates 5 partipant panels side by side */
+    position: relative;
+    overflow: hidden;
 }
 
 #lobby-room-controls-panel {
@@ -22,12 +28,34 @@
 
 #lobby-room-waiting-room-content {
     gap: 15px;
+    width: 100%;
+}
+
+#lobby-room-participants-background-image {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-image: url(../../assets/backgrounds/1.jpg);
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: cover;
+    filter: blur(4px);
+    -webkit-filter: blur(4px);
+    box-shadow: inset 0 0 100px #000; /* Vignette effect */
+    z-index: 1;
+    animation: lobby-background-animation 10s ease-in-out infinite;
+}
+
+@keyframes lobby-background-animation {
+    0%, 100%  {}
+    50%  {transform: scale(1.1)}
 }
 
 #lobby-room-participants-content {
     gap: 15px;
     overflow: auto;
     height: 200px;
+    z-index: 2;
 }
 
 #lobby-room-waiting-room-loader {
@@ -40,8 +68,10 @@
     height: var(--profile-height);
     border-radius: var(--roundness);
     padding: 10px;
-    border: 1px solid var(--panel-primary-border);
+    border: 1px solid var(--panel-secondary-border);
     position: relative;
+    background: var(--panel-primary-background);
+    overflow: hidden;
 }
 
 .participant-profile-card.this-user {
@@ -50,17 +80,29 @@
 
 .participant-profile-ready-blocker {
     position: absolute;
-    width: 100%;
-    height: 100%;
+    width: 183px;
+    height: 186px;
     top: 0px;
     left: 0px;
-    border-radius: var(--roundness);
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #ffff8855;
+    background: radial-gradient(#c4a323 20%, transparent 50%);
+    color: #1b2535;
     z-index: 1;
-    pointer-events: none; /*Allows hover on things below*/
+    transform: translate(-57px, -13px) rotate(348deg);
+    animation: ready-blocker-animation 0.2s ease-in-out;
+    transition: opacity 0.5s;
+}
+
+@keyframes ready-blocker-animation {
+    0%   {transform: translate(-57px, -13px) rotate(348deg);}
+    50%  {transform: translate(-57px, -13px) rotate(372deg);}
+    100% {transform: translate(-57px, -13px) rotate(348deg);}
+}
+
+.participant-profile-ready-blocker:hover {
+    opacity: 0%;
 }
 
 .participant-profile-vert-wrapper {
@@ -71,10 +113,11 @@
     width: var(--profile-width);
     height: var(--profile-width);
     border-radius: 50%;
-    border: 1px solid #FFFFFF;
+    border: 1px solid var(--panel-primary-border);
     overflow: hidden;
     position: relative;
     cursor: pointer;
+    z-index: 2;
 }
 
 .participant-profile-avatar-image {
@@ -107,7 +150,7 @@
 
 #participant-role-switcher {
     position: absolute;
-    z-index: 2;
+    z-index: 101;
     flex-wrap: nowrap;
     height: auto;
     gap: 10px;
@@ -124,9 +167,25 @@
 }
 
 #participant-role-switcher-lightbox {
-    z-index: 1;
+    z-index: 100;
     position: absolute;
     width: 100%;
     height: 100%;
     background: #00000084;
+}
+
+#lobby-room-controls-start-button {
+    border: 2px solid #208694;
+    color: #66c9d6;
+}
+
+#lobby-room-controls-start-button:disabled {
+    border-color: var(--button-disabled-border);
+    color: var(--button-disabled-text-color);
+}
+
+#lobby-room-controls-start-button:hover:not(:disabled) {
+    /* color: */
+    border-color: #45e9ff;
+    color: #45e9ff;
 }

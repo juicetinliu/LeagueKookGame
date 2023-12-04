@@ -2,6 +2,7 @@ import { Page } from "../page.js";
 import { Element, documentCreateElement } from "../components.js";
 import { GAME_ROLES, GameUtils } from "../game.js";
 import { GAME_COMM_STATE, GAME_COMM_TYPES, GameComm } from "../fire.js";
+import { ONE_SECOND } from "../util.js";
 
 export class BaronGamePage extends Page {
     constructor(app) {
@@ -12,7 +13,10 @@ export class BaronGamePage extends Page {
 
 
         this.baronHealthBarWrapper = new Element("id", "baron-health-bar-wrapper");
+        this.baronHealthBarText = new Element("id", "baron-health-bar-text");
         this.baronHealthBar = new Element("id", "baron-health-bar");
+        this.baronHealthBarRemainingHealth = new Element("id", "baron-health-bar-remaining-health");
+
 
         this.baronCodeInput = new Element("id", "baron-code-input");
         this.baronCodeSubmitButton = new Element("id", "baron-code-submit-button");
@@ -28,6 +32,7 @@ export class BaronGamePage extends Page {
     reset(resetPageState = true) {
         this.gameCommsBeingProcessedMap = {};
 
+        this.baronLastHealthPercentage = 0;
         this.baronHealth = null;
         this.baronMaxHealth = null;
 
@@ -91,14 +96,16 @@ export class BaronGamePage extends Page {
                 if(GameUtils.isGameInProgress(gameState) && this.baronHealth && this.baronMaxHealth) {
                     this.setBaronHealth(this.baronHealth);
                     this.showBaronContent();
+                    this.animateBaronToNewHealth();
                 } else if (GameUtils.hasGameEnded(gameState)) {
-                    console.log("=== GAME ENDED ===");
-                    this.reset(false);
-                    this.gameEnded = true;
-                    this.pageState.gameEnded = this.gameEnded;
-                    this.app.savePageStateToHistory(true);
-                    this.showEndGameView();
-                    //Go back to lobby
+                    if(GameUtils.isGameInLobby(gameState)) {
+                        console.log("=== GAME ENDED ===");
+                        this.reset(false);
+                        this.gameEnded = true;
+                        this.pageState.gameEnded = this.gameEnded;
+                        this.app.savePageStateToHistory(true);
+                        this.showEndGameView();
+                    }
                 }
                 return;
             });
@@ -119,24 +126,38 @@ export class BaronGamePage extends Page {
             this.showBaronView(true);
         } else if(gameComm.commType === GAME_COMM_TYPES.REPORT_BARON_CODE) {
             if(gameComm.data.isValid) {
-                if(gameComm.data.isLastHit) {
+                let isLastHit = gameComm.data.isLastHit;
+                if(isLastHit) {
+                    console.log("=== GAME ENDED ===");
                     this.winningTeam = gameComm.data.team;
                     this.gameEnded = true;
 
                     this.pageState.winningTeam = this.winningTeam;
                     this.pageState.gameEnded = this.gameEnded;
                     this.app.savePageStateToHistory(true);
-
-                    this.showEndGameView();
                 } else {
                     this.showBaronView();
                 }
 
                 this.setBaronHealth(gameComm.data.healthAfterDamage, gameComm.data.damageAmount);
                 this.showBaronContent();
+                if(isLastHit) {
+                    this.animateBaronToNewHealth(() => {
+                        setTimeout(() => {this.showEndGameView();}, ONE_SECOND);
+                    });
+                } else {
+                    this.animateBaronToNewHealth();
+                }
             } else {
                 console.log("Baron code was not valid, please try again");
                 this.baronCodeInput.getElement().value = "";
+                this.baronCodeInput.getElement().classList.add("wrong");
+                if(this.baronCodeInputErrorTimeout) {
+                    clearTimeout(this.baronCodeInputErrorTimeout);
+                }
+                this.baronCodeInputErrorTimeout = setTimeout(() => {
+                    this.baronCodeInput.getElement().classList.remove("wrong");
+                }, 500);
                 this.showBaronContent();
             }
         } else {
@@ -185,14 +206,40 @@ export class BaronGamePage extends Page {
     setBaronHealth(health) {
         this.baronHealth = health;
         if(this.baronHealthBar.exists()) {
-            this.baronHealthBar.getElement().innerHTML = this.createBaronHealthBarContent(this.baronHealth);
+            if(!this.baronHealthBarRemainingHealth.exists()) {
+                this.baronHealthBar.getElement().innerHTML = this.createBaronHealthBarContent();
+            }
+            this.baronHealthBarText.getElement().innerHTML = this.baronHealth;
         }
     }
 
+    animateBaronToNewHealth(callbackAfterAnimation = null) {
+        let remainingPercentageHealth = 100 * this.baronHealth/this.baronMaxHealth;
+        setTimeout(() => {
+            if(this.baronHealthBarRemainingHealth.exists()) {
+                this.baronHealthBarRemainingHealth.getElement().style.width = `${remainingPercentageHealth}%`;
+            }
+            if(callbackAfterAnimation) {
+                callbackAfterAnimation();
+            }
+        }, 100);
+        this.baronLastHealthPercentage = remainingPercentageHealth;
+    }
+
     showBaronView(isBufferedView = false) {
+        if(this.baronCodeInputErrorTimeout) {
+            clearTimeout(this.baronCodeInputErrorTimeout);
+        }
         this.showLoaderContent(true);
         this.baronContent.getElement().innerHTML = this.createBaronContent();
         
+        this.baronCodeInput.addEventListener(["input"], () => {
+            this.baronCodeInput.getElement().classList.remove("wrong");
+            if(this.baronCodeInputErrorTimeout) {
+                clearTimeout(this.baronCodeInputErrorTimeout);
+            }
+            return;
+        });
         this.baronCodeSubmitButton.addEventListener(["click"], async () => {
             this.showLoaderContent();
             let baronCodeInputValue = this.baronCodeInput.getElement().value;
@@ -209,7 +256,7 @@ export class BaronGamePage extends Page {
     }
 
     shouldShowEndGameView() {
-        return !this.roomId || this.winningTeam || this.gameEnded
+        return !this.roomId || this.winningTeam || this.gameEnded;
     }
 
     showEndGameView() {
@@ -258,8 +305,11 @@ export class BaronGamePage extends Page {
         return page;
     }
 
-    createBaronHealthBarContent(health) {
-        return `${health} HP`;
+    createBaronHealthBarContent() {
+        return `
+            <div id="${this.baronHealthBarRemainingHealth.label}" style="width:${this.baronLastHealthPercentage}%"></div>
+        `;
+
     }
 
     createEndGameContent() {
@@ -291,14 +341,19 @@ export class BaronGamePage extends Page {
     createBaronContent() {
         return `
             <div class="h hv-c vh-c">
-                <img id="baron-game-page-loader" src="assets/baron/baron.png"></img>
-            </div>
-            <div class="h hv-c vh-c">
                 <div id="${this.baronHealthBarWrapper.label}">
+                    <div id="baron-health-bar-text-wrapper" class="h hv-c vh-b">
+                        <div class="baron-health-bar-text-ornaments left"></div>
+                        <div id="${this.baronHealthBarText.label}">anything</div>
+                        <div class="baron-health-bar-text-ornaments right"></div>
+                    </div>
                     <div id="${this.baronHealthBar.label}">
-                        ${this.createBaronHealthBarContent('anything')}
+                        ${this.createBaronHealthBarContent()}
                     </div>
                 </div>
+            </div>
+            <div class="h hv-c vh-c">
+                <img id="baron-game-baron-boss" src="assets/baron/baron.png"></img>
             </div>
             <div class="h hv-c vh-c">
                 <div class="panel">

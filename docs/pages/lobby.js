@@ -11,6 +11,7 @@ export class LobbyPage extends Page {
         
         this.roomInfoPanel = new Element("id", "lobby-room-info-panel");
         this.roomParticipantsPanel = new Element("id", "lobby-participants-panel");
+        this.roomParticipantsContent = new Element("id", "lobby-room-participants-content");
         this.roomControlsPanel = new Element("id", "lobby-room-controls-panel");
 
         this.roomInfoUserRole = new Element("id", "lobby-room-info-user-role");
@@ -67,11 +68,18 @@ export class LobbyPage extends Page {
         this.reset();
         await this.setRoomParametersAndPageState(setupArgs);
         this.setInitialRoomPageElements();
+        this.updateRoomWhenParticipantsChange(null);
 
         if(this.gameStarted) console.log("Game already started; still setting up lobby");
 
         // Attach firebase listeners
-        if(this.isAdmin) {
+        if(this.isAdmin) {   
+            if(!this.gameStarted) {
+                console.log("Making sure we move to lobby first");
+                await this.app.fire.leaveGame(this.roomId);
+                let gameState = await this.app.fire.getRoomGameState(this.roomId);
+                this.saveGameStateToPageState(gameState);
+            }
             this.waitListListener = this.app.fire.attachAdminWaitListListener(this.roomId, this.gameState);
             this.attachLobbyListListener();
             if(!this.gameStarted) {
@@ -108,8 +116,6 @@ export class LobbyPage extends Page {
                 console.log("Game has already started, not attaching GameStart listener");
             }
         }
-
-        this.updateRoomWhenParticipantsChange(null);
 
         //We can reregister since we recreate the control panel content (listeners are lost)
         if(this.isAdmin) {
@@ -241,7 +247,7 @@ export class LobbyPage extends Page {
     }
 
     setInitialRoomPageElements() {
-        this.roomInfoUserRole.getElement().innerHTML = this.isAdmin ? "Admin" : "Participant"
+        this.roomInfoUserRole.getElement().innerHTML = this.isAdmin ? "👑 Admin" : "Participant"
         this.roomInfoRoomCode.getElement().innerHTML = this.roomId;
         this.roomInfoRoomPasscode.getElement().innerHTML = this.roomPasscode;
         this.roomControlsPanel.getElement().innerHTML = this.createRoomControlsPanelContent();
@@ -282,7 +288,7 @@ export class LobbyPage extends Page {
 
     updateRoomWhenParticipantsChange(data) {
         console.log("Updating participants list:", data);
-        this.roomParticipantsPanel.getElement().innerHTML = (!this.isAdmin && this.waitListListener) ? this.createWaitingRoomContent() : this.createParticipantsPanelContent(data);
+        this.roomParticipantsContent.getElement().innerHTML = (!this.isAdmin && !this.isParticipant) ? this.createWaitingRoomContent() : this.createParticipantsPanelContent(data);
         this.participantProfileCards.forEach(card => {card.setup()});
         if(this.isAdmin && !this.gameStarted) {
             if(data) {
@@ -322,12 +328,7 @@ export class LobbyPage extends Page {
         this.participantProfileCards.forEach(card => {
             participantsPanelContent += card.create();
         })
-        return `
-            <div id="lobby-room-participants-background-image"></div>
-            <div id="lobby-room-participants-content" class="h vh-t hv-l">
-                ${participantsPanelContent}
-            </div>
-        `;
+        return `${participantsPanelContent}`;
     }
 
     create() {
@@ -338,6 +339,9 @@ export class LobbyPage extends Page {
                 <div id="lobby-page-content-vert-wrapper" class="v vh-c hv-c">
                     ${this.createRoomInfoPanel()}
                     <div id="${this.roomParticipantsPanel.label}" class="panel h vh-c hv-c">
+                        <div id="lobby-room-participants-background-image"></div>
+                        <div id="${this.roomParticipantsContent.label}" class="h vh-t hv-l">
+                        </div>
                     </div>
                     <div id="${this.roomControlsPanel.label}" class="panel">
                         ${this.createRoomControlsPanelContent()}
@@ -361,17 +365,17 @@ export class LobbyPage extends Page {
     createRoomInfoPanel() {
         return `
             <div id="${this.roomInfoPanel.label}" class="panel">
-                <div id="lobby-page-user-role-content-row" class="h hv-c vh-c">
+                <div id="lobby-page-user-role-content-row" class="lobby-page-room-info-panel-row h hv-c vh-c">
                     <div id="${this.roomInfoUserRole.label}" class="text-info">
                     </div>
                 </div>
-                <div id="lobby-page-room-code-content-row" class="h hv-c vh-c">
-                    <div>${this.ROOM_INFO_ROOM_CODE_HEADER_TEXT}</div>
+                <div id="lobby-page-room-code-content-row" class="lobby-page-room-info-panel-row h hv-c vh-c">
+                    <div>${this.ROOM_INFO_ROOM_CODE_HEADER_TEXT} </div>
                     <div id="${this.roomInfoRoomCode.label}" class="text-info">
                     </div>
                 </div>
-                <div id="lobby-page-room-passcode-content-row" class="h hv-c vh-c">
-                    <div>${this.ROOM_INFO_ROOM_PASSCODE_HEADER_TEXT}</div>
+                <div id="lobby-page-room-passcode-content-row" class="lobby-page-room-info-panel-row h hv-c vh-c">
+                    <div>${this.ROOM_INFO_ROOM_PASSCODE_HEADER_TEXT} </div>
                     <div id="${this.roomInfoRoomPasscode.label}" class="text-info">
                     </div>
                 </div>
@@ -473,12 +477,12 @@ class ParticipantProfileCard extends Component {
     create() {
         let out = `
             <div id="${this.label}" class="participant-profile-card ${this.isCurrentUser ? "this-user" : ""}">
-                ${(this.isReady || this.isAdmin) ? `
-                    <div class="participant-profile-ready-blocker">
-                        ${this.isAdmin ? "" : "Ready!"}
-                    </div>
-                ` : ""}
                 <div class="participant-profile-vert-wrapper v vh-c hv-c">
+                    ${(this.isReady || this.isAdmin) ? `
+                        <div class="participant-profile-ready-blocker">
+                            ${this.isAdmin ? "👑" : "Ready!"}
+                        </div>
+                    ` : ""}
                     <div id="${this.profileAvatar.label}" class="participant-profile-avatar">
                         <div class="participant-profile-role-hover">
                             ${this.roleString}
