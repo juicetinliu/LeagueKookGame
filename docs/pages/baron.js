@@ -119,12 +119,14 @@ export class BaronGamePage extends Page {
         this.gameCommsBeingProcessedMap[gameCommId] = gameComm;
         if(gameComm.commType === GAME_COMM_TYPES.INITIALIZE_BARON) {
             this.baronMaxHealth = gameComm.data.health;
-            this.setBaronHealth(this.baronMaxHealth);
+            this.baronHealth = this.baronMaxHealth;
 
             let comm = new GameComm(this.getAdminFireUserUidWithAdminFallback(), GAME_COMM_TYPES.INITIALIZATION_DONE, {fireUserUid: this.getAdminFireUserUidWithAdminFallback()});
             await this.sendGameCommToAdminWithAdminFallback(comm);
 
             this.showBaronView(true);
+            this.setBaronHealth(this.baronHealth);
+            this.animateBaronToNewHealth();
         } else if(gameComm.commType === GAME_COMM_TYPES.REPORT_BARON_CODE) {
             if(gameComm.data.isValid) {
                 let isLastHit = gameComm.data.isLastHit;
@@ -136,8 +138,6 @@ export class BaronGamePage extends Page {
                     this.pageState.winningTeam = this.winningTeam;
                     this.pageState.gameEnded = this.gameEnded;
                     this.app.savePageStateToHistory(true);
-                } else {
-                    this.showBaronView();
                 }
 
                 this.setBaronHealth(gameComm.data.healthAfterDamage, gameComm.data.damageAmount);
@@ -161,6 +161,7 @@ export class BaronGamePage extends Page {
                 }, 500);
                 this.showBaronContent();
             }
+            this.baronCodeInput.getElement().disabled = false;
         } else {
             console.log(`No Baron action done for comm type ${this.commType}`);
             return;
@@ -241,7 +242,7 @@ export class BaronGamePage extends Page {
         if(this.baronCodeInputErrorTimeout) {
             clearTimeout(this.baronCodeInputErrorTimeout);
         }
-        this.showLoaderContent(true);
+        this.showLoaderContent();
         this.baronContent.getElement().innerHTML = this.createBaronContent();
         
         this.baronCodeInput.addEventListener(["input"], () => {
@@ -252,7 +253,7 @@ export class BaronGamePage extends Page {
             return;
         });
         this.baronCodeSubmitButton.addEventListener(["click"], async () => {
-            this.showLoaderContent();
+            this.baronCodeInput.getElement().disabled = true;
             let baronCodeInputValue = this.baronCodeInput.getElement().value;
             //send to admin!
             let fireUserUid = this.getAdminFireUserUidWithAdminFallback();

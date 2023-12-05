@@ -34,8 +34,8 @@ export class AdminGamePage extends Page {
         this.reset();
         this.setRoomParametersAndPageState(setupArgs);
 
-        console.log(`roomId: ${this.roomId}, winningTeam: ${this.winningTeam}, gameEnded: ${this.gameEnded}`);
         if(this.winningTeam || this.gameEnded) {
+            // POSSIBLE BUG: History is saved with winning state when game ends – but we don't use this in any way. This might cause bugs? we'll see.
             return;
         }
 
@@ -61,7 +61,7 @@ export class AdminGamePage extends Page {
         }
 
         // Clear game comms from previous game:
-        this.app.fire.clearRoomComms(this.roomId, this.lobbyUserList);
+        await this.app.fire.clearRoomComms(this.roomId, this.lobbyUserList);
 
         let mcqPlayers = this.game.getMCQPlayerList();
         let baronPlayer = this.game.getBaronPlayer();
@@ -103,11 +103,12 @@ export class AdminGamePage extends Page {
             });
         });
 
-        this.gameEndButton.addEventListener(["click"], async () => {
-            await this.closeGame();
-            return;
-        });
-
+        if(!this.setupCompleted){
+            this.gameEndButton.addEventListener(["click"], async () => {
+                await this.closeGame();
+                return;
+            });
+        }
         super.setup();
     }
 
@@ -187,7 +188,9 @@ export class AdminGamePage extends Page {
                     this.gameEnded = true;
                     this.pageState.winningTeam = this.winningTeam;
                     this.pageState.gameEnded = this.gameEnded;
-                    this.app.savePageStateToHistory(true);
+                    if(!this.isBaron) {
+                        this.app.savePageStateToHistory(true);
+                    }
 
                     await this.app.fire.endGame(this.roomId);
                 }
@@ -234,10 +237,13 @@ export class AdminGamePage extends Page {
     }
 
     async closeGame() {
+        this.gameEnded = true;
+        this.pageState.gameEnded = this.gameEnded;
+        if(!this.isBaron) {
+            this.app.savePageStateToHistory(true);
+        }
         await this.app.fire.leaveGame(this.roomId);
-        //Clear game comms
 
-        //show game closed page
         await this.app.goToPage(this.app.pages.lobby, {
             roomId: this.roomId,
             roomPasscode: this.roomPasscode,
@@ -307,6 +313,6 @@ export class AdminGamePage extends Page {
     }
 
     show() {
-        super.show(false);
+        super.show(!this.isBaron);
     }
 }
