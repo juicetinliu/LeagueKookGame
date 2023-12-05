@@ -1,10 +1,46 @@
-#baron-game-page-loader, #baron-game-baron-boss {
+#baron-game-page-loader {
     width: 250px;
     border-radius: var(--roundness);
 }
 
+#baron-game-baron-boss {
+    width: 600px;
+    transition: filter 1s;
+}
+
+#baron-game-baron-boss:not(.dead):not(.damaged) {
+    animation: baron-boss-alive-animation 1s infinite;
+}
+
+@keyframes baron-boss-alive-animation {
+    50% {    
+        filter: saturate(3);
+        transform: scale(1.01);
+    }
+}
+
+#baron-game-baron-boss.damaged {
+    animation: baron-boss-damaged-animation 1s infinite;
+}
+
+@keyframes baron-boss-damaged-animation {
+    50% {    
+        filter: drop-shadow(1px -12px 64px red);
+        transform: scale(0.99) translate(0px, 1px);
+    }
+}
+
+#baron-game-baron-boss.dead {
+    filter: grayscale(1.0);
+}
+
 #baron-game-page-wrapper, #baron-game-page-baron-content {
     gap: 20px;
+}
+
+#baron-code-input-panel {
+    gap: 20px;
+    z-index: 5;
 }
 
 #baron-code-input {
@@ -60,5 +96,5 @@
     width: 100%;
     position: absolute;
     height: 100%;
-    transition: width 0.5s ease-in-out;
+    transition: width 1s ease-in-out;
 }

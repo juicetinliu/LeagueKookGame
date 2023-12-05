@@ -8,3 +8,7 @@
     height: 200px;
     overflow: hidden;
 }
+
+#team-code-input-panel {
+    gap: 20px;
+}

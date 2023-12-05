@@ -479,7 +479,7 @@ class ParticipantProfileCard extends Component {
             <div id="${this.label}" class="participant-profile-card ${this.isCurrentUser ? "this-user" : ""}">
                 <div class="participant-profile-vert-wrapper v vh-c hv-c">
                     ${(this.isReady || this.isAdmin) ? `
-                        <div class="participant-profile-ready-blocker">
+                        <div class="participant-profile-ready-blocker no-select">
                             ${this.isAdmin ? "👑" : "Ready!"}
                         </div>
                     ` : ""}

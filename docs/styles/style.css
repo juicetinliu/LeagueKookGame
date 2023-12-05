@@ -104,9 +104,18 @@ body {
     width: auto;
 }
 
+/* See https://stackoverflow.com/a/4407335 */
+.no-select {
+    -webkit-touch-callout: none; /* iOS Safari */
+    -webkit-user-select: none; /* Safari */
+    -khtml-user-select: none; /* Konqueror HTML */
+    -moz-user-select: none; /* Old versions of Firefox */
+    -ms-user-select: none; /* Internet Explorer/Edge */
+    user-select: none; /* Non-prefixed version, currently supported by Chrome, Edge, Opera and Firefox */
+}
+
 /* Input styling - see https://www.w3schools.com/css/css_form.asp */
 input, input[type=text] {
-    cursor: pointer;
     padding: 5px 10px;
     background: var(--button-primary-background);
     color: var(--button-primary-text-color);

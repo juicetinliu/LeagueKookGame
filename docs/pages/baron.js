@@ -16,6 +16,7 @@ export class BaronGamePage extends Page {
         this.baronHealthBarText = new Element("id", "baron-health-bar-text");
         this.baronHealthBar = new Element("id", "baron-health-bar");
         this.baronHealthBarRemainingHealth = new Element("id", "baron-health-bar-remaining-health");
+        this.baronBoss = new Element("id", "baron-game-baron-boss");
 
 
         this.baronCodeInput = new Element("id", "baron-code-input");
@@ -143,7 +144,7 @@ export class BaronGamePage extends Page {
                 this.showBaronContent();
                 if(isLastHit) {
                     this.animateBaronToNewHealth(() => {
-                        setTimeout(() => {this.showEndGameView();}, ONE_SECOND);
+                        setTimeout(() => {this.showEndGameView();}, ONE_SECOND * 2);
                     });
                 } else {
                     this.animateBaronToNewHealth();
@@ -215,6 +216,16 @@ export class BaronGamePage extends Page {
 
     animateBaronToNewHealth(callbackAfterAnimation = null) {
         let remainingPercentageHealth = 100 * this.baronHealth/this.baronMaxHealth;
+        if(this.baronHealth === 0) {
+            this.baronBoss.getElement().classList.add("dead");
+            this.baronBoss.getElement().classList.remove("damaged");
+        } else if (remainingPercentageHealth <= 10) {
+            this.baronBoss.getElement().classList.remove("dead");
+            this.baronBoss.getElement().classList.add("damaged");
+        } else {
+            this.baronBoss.getElement().classList.remove("dead");
+            this.baronBoss.getElement().classList.remove("damaged");
+        }
         setTimeout(() => {
             if(this.baronHealthBarRemainingHealth.exists()) {
                 this.baronHealthBarRemainingHealth.getElement().style.width = `${remainingPercentageHealth}%`;
@@ -352,11 +363,11 @@ export class BaronGamePage extends Page {
                     </div>
                 </div>
             </div>
-            <div class="h hv-c vh-c">
-                <img id="baron-game-baron-boss" src="assets/baron/baron.png"></img>
+            <div class="h hv-c vh-c no-select">
+                <img id="${this.baronBoss.label}" src="assets/baron/baron.png"></img>
             </div>
             <div class="h hv-c vh-c">
-                <div class="panel">
+                <div id="baron-code-input-panel" class="panel h hv-c vh-c">
                     <input id="${this.baronCodeInput.label}" placeholder="Enter a Baron Attack Code">
                     <button id="${this.baronCodeSubmitButton.label}">
                         Submit

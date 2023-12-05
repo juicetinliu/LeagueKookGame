@@ -392,7 +392,7 @@ export class MCQGamePage extends Page {
                 What is your team code? Hint: teamCodes are (${Object.entries(this.teamCodes)})
             </div>
             <div class="h hv-c vh-c">
-                <div class="panel">
+                <div id="team-code-input-panel" class="panel h hv-c vh-c">
                     <input id="${this.teamCodeInput.label}" placeholder="Enter Team Code">
                     <button id="${this.teamCodeSubmitButton.label}">
                         Submit
