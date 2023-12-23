@@ -183,6 +183,12 @@ export class MCQGamePage extends Page {
     setQuestionDurations(answerDuration, lockoutDuration) {
         this.questionAnswerWindowDuration = answerDuration;
         this.questionWrongLockoutDuration = lockoutDuration;
+
+        this.questionAnswerTimerCounter = 0;
+        this.resetQuestionAnswerTimer();
+
+        this.questionLockoutTimerCounter = 0;
+        this.resetQuestionLockoutTimer();
     }
 
     setAssignedQuestionAndTeam(assignedQuestion, assignedTeam) {
