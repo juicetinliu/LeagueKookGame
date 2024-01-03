@@ -22,6 +22,9 @@
     --button-disabled-text-color: #493f17;
     --button-disabled-border: #493f17;
 
+    --team-blue-text-color: #056ade;
+    --team-red-text-color: #de2605;
+
     --error-primary-border: #FF0000;
 
     --profile-width: 46px;
@@ -155,6 +158,10 @@ button:disabled {
 
 button:hover:not(:disabled) {
     border-color: var(--button-hover-border);
+}
+
+.text-vert-divider {
+    color: var(--secondary-text-color);
 }
 
 

@@ -216,15 +216,17 @@ export class BaronGamePage extends Page {
 
     animateBaronToNewHealth(callbackAfterAnimation = null) {
         let remainingPercentageHealth = 100 * this.baronHealth/this.baronMaxHealth;
-        if(this.baronHealth === 0) {
-            this.baronBoss.getElement().classList.add("dead");
-            this.baronBoss.getElement().classList.remove("damaged");
-        } else if (remainingPercentageHealth <= 10) {
-            this.baronBoss.getElement().classList.remove("dead");
-            this.baronBoss.getElement().classList.add("damaged");
-        } else {
-            this.baronBoss.getElement().classList.remove("dead");
-            this.baronBoss.getElement().classList.remove("damaged");
+        if(this.baronBoss.exists()) {
+            if(this.baronHealth === 0) {
+                this.baronBoss.getElement().classList.add("dead");
+                this.baronBoss.getElement().classList.remove("damaged");
+            } else if (remainingPercentageHealth <= 10) {
+                this.baronBoss.getElement().classList.remove("dead");
+                this.baronBoss.getElement().classList.add("damaged");
+            } else {
+                this.baronBoss.getElement().classList.remove("dead");
+                this.baronBoss.getElement().classList.remove("damaged");
+            }
         }
         setTimeout(() => {
             if(this.baronHealthBarRemainingHealth.exists()) {

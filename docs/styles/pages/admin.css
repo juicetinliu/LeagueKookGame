@@ -1,3 +1,55 @@
 #admin-game-page-wrapper {
     gap: 20px;
 }
+
+.admin-panel-info-header {
+    border-bottom: 1px solid var(--panel-primary-border);
+}
+
+#admin-game-panel {
+    gap: 20px;
+    flex-wrap: nowrap;
+}
+
+.admin-game-stats-panel {
+    height: 250px;
+    width: 200px;
+    flex-wrap: nowrap;
+}
+
+#admin-baron-code-history-panel {
+    height: 100%;
+    width: 100%;
+    overflow-y: auto;
+    flex-wrap: nowrap;
+}
+
+.baron-code-history-panel-entry {
+    gap: 5px;
+}
+.baron-code-history-panel-entry.inactive-entry {
+    color: var(--secondary-text-color);
+}
+
+.baron-code-history-panel-entry-baron-code {
+    width: 40px;
+}
+.baron-code-history-panel-entry-team {
+    width: 35px;
+}
+.baron-code-history-panel-entry-team.team-blue {
+    color: var(--team-blue-text-color);
+}
+.baron-code-history-panel-entry-team.team-red {
+    color: var(--team-red-text-color);
+}
+.baron-code-history-panel-entry-active {
+    width: 65px;
+}
+
+#admin-team-attack-history-panel {
+    height: 100%;
+    width: 100%;
+    overflow-y: auto;
+    flex-wrap: nowrap;
+}

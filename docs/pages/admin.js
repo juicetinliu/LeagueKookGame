@@ -2,6 +2,7 @@ import { Page } from "../page.js";
 import { Element, documentCreateElement } from "../components.js";
 import { GAME_ROLES, LeagueKookGame, LeagueKookGameSettings, TEAM } from "../game.js";
 import { GAME_COMM_STATE, GAME_COMM_TYPES, GameComm } from "../fire.js";
+import { ONE_SECOND } from "../util.js";
 
 export class AdminGamePage extends Page {
     constructor(app) {
@@ -12,6 +13,10 @@ export class AdminGamePage extends Page {
 
         this.adminBaronViewSwitchButtonWrapper = new Element("id", "admin-baron-view-switch-button-wrapper");
         this.adminBaronViewSwitchButton = new Element("id", "admin-baron-view-switch-button");
+
+        this.gameInfoPanel = new Element("id", "admin-game-info-panel");
+        this.baronCodeHistoryPanel = new Element("id", "admin-baron-code-history-panel");
+        this.teamAttackHistoryPanel = new Element("id", "admin-team-attack-history-panel");
 
         this.reset();
     }
@@ -26,6 +31,12 @@ export class AdminGamePage extends Page {
             console.log("Unsubscribed previous admin GameComms listener");
         }
         this.adminCommsListener = null;
+
+        if(this.baronCodeHistoryInterval) {
+            clearInterval(this.baronCodeHistoryInterval);
+        }
+        this.baronCodeHistoryInterval = null;
+
         super.reset();
     }
 
@@ -59,6 +70,11 @@ export class AdminGamePage extends Page {
             await this.closeGame();
             return;
         }
+
+        this.setupAdminPagePanel();
+        this.baronCodeHistoryInterval = setInterval(() => {
+            this.updateBaronCodeHistoryPanel();
+        }, ONE_SECOND);
 
         // Clear game comms from previous game:
         await this.app.fire.clearRoomComms(this.roomId, this.lobbyUserList);
@@ -140,6 +156,7 @@ export class AdminGamePage extends Page {
 
                 if(isCorrect) {
                     this.registerBaronCode(baronCode, mcqPlayer);
+                    this.updateBaronCodeHistoryPanel();
                 }
             }
         } else if(gameComm.commType === GAME_COMM_TYPES.REQUEST_MCQ_QUESTION) {
@@ -162,6 +179,8 @@ export class AdminGamePage extends Page {
             let baronCode = gameComm.data.baronCode;
             let baronCodePackage = this.game.verifyDeactivateAndReturnBaronCodePackage(baronCode);
             let baronPlayer = this.game.getBaronPlayer();
+
+            this.updateBaronCodeHistoryPanel();
 
             if(baronPlayer) {
                 let isValid = false;
@@ -296,9 +315,22 @@ export class AdminGamePage extends Page {
             <div id="${this.pageWrapper.label}" class="v vh-c hv-c">
                 <div id="${this.adminBaronViewSwitchButtonWrapper.label}" class="h hv-c vh-c">
                 </div>
-                <div class="h hv-c vh-c panel">
+                <div id="admin-game-panel" class="h hv-c vh-c panel">
+                    <div id="admin-game-info-panel" class="v hv-c vh-t panel">
+                        <div id="${this.gameInfoPanel.label}" class="v hv-c vh-c"> Game Info </div>
+                    </div>
+                    <div class="admin-game-stats-panel v hv-c vh-t panel">
+                        <div class="admin-panel-info-header"> Baron Attack Codes: </div>
+                        <div id="${this.baronCodeHistoryPanel.label}" class="v hv-l vh-t"> - </div>
+                    </div>
+                    <div class="admin-game-stats-panel v hv-c vh-t panel">
+                        <div class="admin-panel-info-header"> Attack History: </div>
+                        <div id="${this.teamAttackHistoryPanel.label}" class="v hv-l vh-t"> - </div>
+                    </div>
+                </div>
+                <div class="h hv-c vh-c">
                     <button id="${this.gameEndButton.label}">
-                        End!
+                        End Game!
                     </button>
                 </div>
             </div>
@@ -306,6 +338,42 @@ export class AdminGamePage extends Page {
         
         super.create();
         return page;
+    }
+
+    setupAdminPagePanel() {
+        this.gameInfoPanel.getElement().innerHTML = `
+            <div class="admin-panel-info-header"> Team Codes: </div>
+            <div> Blue: ${this.game.settings.teamCodes[TEAM.BLUE]} </div>
+            <div> Red: ${this.game.settings.teamCodes[TEAM.RED]} </div>
+        `;
+    }
+
+    updateBaronCodeHistoryPanel() {
+        let baronCodeHistory = this.game.getBaronCodeHistory();
+        let baronCodeHistoryHTML = baronCodeHistory.length ? "" : "-";
+        baronCodeHistory.forEach(baronCodePackage => {
+            let baronCode = baronCodePackage.baronCode;
+            let expiryTime = baronCodePackage.expiryTime;
+            let baronCodeActive = baronCodePackage.active;
+            let isCodeExpired = Date.now() >= expiryTime;
+            let isCodeActive = baronCodeActive && !isCodeExpired;
+            let timeLeft = Math.round((expiryTime - Date.now()) / ONE_SECOND) + "s";
+            let entryId = `baron-code-entry-${baronCode}`;
+
+            baronCodeHistoryHTML += `
+                <div id="${entryId}" class="baron-code-history-panel-entry h hv-l vh-c ${isCodeActive ? "" : "inactive-entry"}">
+                    <div class="baron-code-history-panel-entry-baron-code">${baronCode}</div>
+                    <div class="text-vert-divider"> | </div>
+                    <div class="baron-code-history-panel-entry-team team-${baronCodePackage.team}">${baronCodePackage.team}</div>
+                    <div class="text-vert-divider"> | </div>
+                    <div class="baron-code-history-panel-entry-active">${baronCodeActive ? (isCodeExpired ? "Expired" : timeLeft) :  "Used"}</div>
+                </div>
+            `
+        });
+        this.baronCodeHistoryPanel.getElement().innerHTML = baronCodeHistoryHTML;
+    }
+
+    updateTeamAttackHistoryPanel() {
     }
 
     hide() {

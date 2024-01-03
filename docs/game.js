@@ -640,6 +640,10 @@ export class LeagueKookGame {
         this.baronCodeHistory.push(baronCodePackage);
     }
 
+    getBaronCodeHistory() {
+        return this.baronCodeHistory;
+    }
+
     generateTeamAssignmentsPool() {
         console.log("Generating team assignment pool");
         let numRemainingUnassignedComputers = this.numMcqs - (this.minTeamComputers * 2);
