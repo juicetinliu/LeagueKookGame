@@ -3,12 +3,56 @@
     border-radius: var(--roundness);
 }
 
+#mcq-game-page-question-content {
+    gap: 20px;
+}
+
+#mcq-game-page-question-image-panel {
+    width: 80vw;
+}
+
+
 #mcq-game-page-question-image {
-    width: 250px;
-    height: 200px;
-    overflow: hidden;
+    width: 100%;
 }
 
 #team-code-input-panel {
     gap: 20px;
+}
+
+#mcq-game-page-answer-options-panel {
+    width: 80vw;
+    justify-content: space-between;
+}
+
+.mcq-answer-option {
+    padding: 35px 55px;
+}
+
+#mcq-game-page-wrong-answer-loader {
+    width: 200px;
+}
+
+#mcq-lockout-timer-text-panel {
+    gap: 5px;
+}
+
+#mcq-lockout-timer-text {
+    width: 25px;
+}
+
+#mcq-answer-window-timer-text-panel {
+    gap: 5px;
+}
+
+#mcq-answer-window-timer-text {
+    width: 25px;
+}
+
+#mcq-game-page-correct-answer-loader {
+    width: 200px;
+}
+
+#mcq-baron-attack-code-panel {
+    gap: 5px;
 }

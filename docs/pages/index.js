@@ -89,6 +89,13 @@ export class JoinRoomPage extends Page {
                 }
                 return;
             });
+
+            this.roomCodeInput.addEventListener(["keyup"], (event) => {
+                if(event.key === 'Enter' || event.keyCode === 13){
+                    this.roomCodeSubmitButton.getElement().click();
+                }
+            });
+
             this.roomCodeSubmitButton.addEventListener(["click"], async () => {
                 this.roomId = this.roomCodeInput.getElement().value;
                 let roomId = this.roomId;
@@ -113,6 +120,7 @@ export class JoinRoomPage extends Page {
                         }
                     }
                     this.passCodeContentRow.show();
+                    this.passCodeInput.getElement().focus();
                 } else {
                     if(this.roomCodeInputErrorTimeout) {
                         clearTimeout(this.roomCodeInputErrorTimeout);
@@ -125,6 +133,13 @@ export class JoinRoomPage extends Page {
                     this.passCodeContentRow.hide();
                 }
                 return;
+            });
+
+
+            this.passCodeInput.addEventListener(["keyup"], (event) => {
+                if(event.key === 'Enter' || event.keyCode === 13){
+                    this.passCodeSubmitButton.getElement().click();
+                }
             });
 
             this.passCodeSubmitButton.addEventListener(["click"], async () => {

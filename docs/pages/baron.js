@@ -151,7 +151,6 @@ export class BaronGamePage extends Page {
                 }
             } else {
                 console.log("Baron code was not valid, please try again");
-                this.baronCodeInput.getElement().value = "";
                 this.baronCodeInput.getElement().classList.add("wrong");
                 if(this.baronCodeInputErrorTimeout) {
                     clearTimeout(this.baronCodeInputErrorTimeout);
@@ -252,9 +251,17 @@ export class BaronGamePage extends Page {
             }
             return;
         });
+
+        this.baronCodeInput.addEventListener(["keyup"], (event) => {
+            if(event.key === 'Enter' || event.keyCode === 13){
+                this.baronCodeSubmitButton.getElement().click();
+            }
+        });
+
         this.baronCodeSubmitButton.addEventListener(["click"], async () => {
             this.baronCodeInput.getElement().disabled = true;
             let baronCodeInputValue = this.baronCodeInput.getElement().value;
+            this.baronCodeInput.getElement().value = "";
             //send to admin!
             let fireUserUid = this.getAdminFireUserUidWithAdminFallback();
             let comm = new GameComm(fireUserUid, GAME_COMM_TYPES.VERIFY_BARON_CODE, {fireUserUid: fireUserUid, baronCode: baronCodeInputValue});

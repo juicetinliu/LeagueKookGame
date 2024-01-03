@@ -339,8 +339,16 @@ export class MCQGamePage extends Page {
             }
             return;
         });
+
+        this.teamCodeInput.addEventListener(["keyup"], (event) => {
+            if(event.key === 'Enter' || event.keyCode === 13){
+                this.teamCodeSubmitButton.getElement().click();
+            }
+        });
+
         this.teamCodeSubmitButton.addEventListener(["click"], () => {
             let teamCodeInputValue = this.teamCodeInput.getElement().value;
+            this.teamCodeInput.getElement().value = "";
 
             if(teamCodeInputValue === this.teamCodes[this.assignedTeam]) {
                 console.log("Team code was correct, showing question");
@@ -392,12 +400,6 @@ export class MCQGamePage extends Page {
     createTeamCodeInputContent() {
         return `
             <div class="h hv-c vh-c">
-                This question is for team ${this.assignedTeam}.
-            </div>
-            <div class="h hv-c vh-c">
-                What is your team code? Hint: teamCodes are (${Object.entries(this.teamCodes)})
-            </div>
-            <div class="h hv-c vh-c">
                 <div id="team-code-input-panel" class="panel h hv-c vh-c">
                     <input id="${this.teamCodeInput.label}" placeholder="Enter Team Code">
                     <button id="${this.teamCodeSubmitButton.label}">
@@ -415,13 +417,17 @@ export class MCQGamePage extends Page {
                     Congrats that's the correct answer!
                 </div>
                 <div class="h hv-c vh-c">
-                    Here's the Baron Attack Code: ${baronCode}
+                    <img id="mcq-game-page-correct-answer-loader" src="assets/fiddle/fiddle-celebrate.gif"></img>
+                </div>
+                <div id="mcq-baron-attack-code-panel" class="h hv-c vh-c panel">
+                    <div>Baron Attack Code:</div>
+                    <div><b>${baronCode}</b></div>
+                </div>
+                <div>
+                    It expires <b>5 minutes</b> from NOW, so use it wisely!
                 </div>
                 <div class="h hv-c vh-c">
-                    It will expire 5 mins from NOW, so use it wisely!
-                </div>
-                <div class="h hv-c vh-c">
-                    Close this message once you've memorized the code :D
+                    Close this message once you've memorized the code!
                 </div>
                 <div class="h hv-c vh-c">
                     <button id=${this.moveToNextQuestionButton.label}>
@@ -435,9 +441,13 @@ export class MCQGamePage extends Page {
                     Sorry that's the wrong answer.
                 </div>
                 <div class="h hv-c vh-c">
-                    You're timed out for 1 minute until you can try again.
+                    <img id="mcq-game-page-wrong-answer-loader" src="assets/amumu/amumu-sad.gif"></img>
                 </div>
                 <div class="h hv-c vh-c">
+                    You're timed out for 1 minute until you can try again.
+                </div>
+                <div id="mcq-lockout-timer-text-panel" class="h hv-c vh-c panel">
+                    <div>Seconds remaining:</div>
                     <div id=${this.lockoutTimerText.label}>
                         ${this.questionWrongLockoutDuration / ONE_SECOND}
                     </div>
@@ -448,19 +458,14 @@ export class MCQGamePage extends Page {
 
     createQuestionContent() {
         return `
-            <div class="h hv-c vh-c">
-                ${this.assignedQuestion.title}
+            <div id="mcq-game-page-question-image-panel" class="h hv-c vh-c panel">
+                <img id="mcq-game-page-question-image" src="${this.assignedQuestion.imageUrl}">
             </div>
-            <div id="mcq-game-page-question-image" class="h hv-c vh-c">
-                <img src="${this.assignedQuestion.imageUrl}">
-            </div>
-            <div class="h hv-c vh-c">
+            <div id="mcq-game-page-answer-options-panel" class="h hv-c vh-c panel">
                 ${this.createAnswerOptions()}
             </div>
-            <div class="h hv-c vh-c">
-                Answer is (${this.assignedQuestion.answer}); Team is (${this.assignedTeam}; TeamCodes are (${Object.entries(this.teamCodes)}))
-            </div>
-            <div class="h hv-c vh-c">
+            <div id="mcq-answer-window-timer-text-panel" class="h hv-c vh-c panel">
+                <div>Seconds remaining:</div>
                 <div id=${this.answerWindowTimerText.label}>
                     ${this.questionAnswerWindowDuration / ONE_SECOND}
                 </div>
