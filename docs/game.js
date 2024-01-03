@@ -178,7 +178,7 @@ const RoomConstants = {
     numBaronRole: 1,
     minMCQRoleCount: 2,
 
-    roomActiveDuration: 3 * 60 * 60 * ONE_SECOND, //3 hours until a room is considered "inactive"
+    roomActiveDuration: 24 * 60 * 60 * ONE_SECOND, //24 hours until a room is considered "inactive"
 }
 
 export const RoomUtils = {
@@ -296,8 +296,8 @@ export const GameConstants = {
     baronCodeCharacterPool: 'abcdefghijklmnopqrstuvwxyz0123456789',
     baronCodeActiveDuration: 5 * 60 * ONE_SECOND, // 5 minutes until baron code expires
 
-    questionAnswerWindowDuration: 5 * 60 * ONE_SECOND, // 5 minutes before a question expires
-    questionWrongLockoutDuration: 1 * 60 * ONE_SECOND, // 1 minute before a question can be retried
+    questionAnswerWindowDuration: 2 * 60 * ONE_SECOND, // 2 minutes before a question expires
+    questionWrongLockoutDuration: 30 * ONE_SECOND, // 30 seconds before a question can be retried
 
     baronStartingHealthAmount: 11400,
     defaultBaronDamageGenerator: BaronDamageGenerator.GAUSSIAN,
