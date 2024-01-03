@@ -444,7 +444,7 @@ export class MCQGamePage extends Page {
                     <img id="mcq-game-page-wrong-answer-loader" src="assets/amumu/amumu-sad.gif"></img>
                 </div>
                 <div class="h hv-c vh-c">
-                    You're timed out for 1 minute until you can try again.
+                    You're timed out until you can try again.
                 </div>
                 <div id="mcq-lockout-timer-text-panel" class="h hv-c vh-c panel">
                     <div>Seconds remaining:</div>
