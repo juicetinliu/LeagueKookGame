@@ -300,7 +300,7 @@ export const GameConstants = {
     questionWrongLockoutDuration: 30 * ONE_SECOND, // 30 seconds before a question can be retried
 
     baronStartingHealthAmount: 11400,
-    defaultBaronDamageGenerator: BaronDamageGenerator.GAUSSIAN,
+    defaultBaronDamageGeneratorName: "GAUSSIAN",
     baronCodeMaxDamageAmount: 1000,
     baronCodeMinDamageAmount: 10,
 }
@@ -396,7 +396,11 @@ export class LeagueKookGameSettings {
         baronCodeMaxDamageAmount = null,
         baronCodeMinDamageAmount = null,
         questionAnswerWindowDuration = null,
-        questionWrongLockoutDuration = null) {
+        questionWrongLockoutDuration = null,
+        minTeamComputers = null,
+        randomSeqMultiplier = null,
+        baronDamageGeneratorName = null
+        ) {
         this.teamCodes = teamCodes ? teamCodes : {};
         this.teamCodes[TEAM.BLUE] = "1234";
         this.teamCodes[TEAM.RED] = "4321";
@@ -409,9 +413,9 @@ export class LeagueKookGameSettings {
         this.questionAnswerWindowDuration = questionAnswerWindowDuration ? questionAnswerWindowDuration : GameConstants.questionAnswerWindowDuration;
         this.questionWrongLockoutDuration = questionWrongLockoutDuration ? questionWrongLockoutDuration : GameConstants.questionWrongLockoutDuration;
 
-        this.minTeamComputers = GameConstants.defaultMinimumTeamComputers;
-        this.randomSeqMultiplier = GameConstants.defaultRandomSequenceMultiplier;
-        this.baronDamageGenerator = GameConstants.defaultBaronDamageGenerator;
+        this.minTeamComputers = minTeamComputers ? minTeamComputers : GameConstants.defaultMinimumTeamComputers;
+        this.randomSeqMultiplier = randomSeqMultiplier ? randomSeqMultiplier : GameConstants.defaultRandomSequenceMultiplier;
+        this.baronDamageGeneratorName = baronDamageGeneratorName ? baronDamageGeneratorName : GameConstants.defaultBaronDamageGeneratorName;
     }
 
     setTeamCode(team, code) {
@@ -430,7 +434,10 @@ export class LeagueKookGameSettings {
             data.baronCodeMaxDamageAmount,
             data.baronCodeMinDamageAmount,
             data.questionAnswerWindowDuration,
-            data.questionWrongLockoutDuration);
+            data.questionWrongLockoutDuration,
+            data.minTeamComputers,
+            data.randomSeqMultiplier,
+            data.baronDamageGeneratorName);
     }
 
     toFireFormat() {
@@ -440,9 +447,11 @@ export class LeagueKookGameSettings {
             baronCodeActiveDuration: this.baronCodeActiveDuration,
             baronCodeMaxDamageAmount: this.baronCodeMaxDamageAmount,
             baronCodeMinDamageAmount: this.baronCodeMinDamageAmount,
+            questionAnswerWindowDuration: this.questionAnswerWindowDuration,
+            questionWrongLockoutDuration: this.questionWrongLockoutDuration,
             minTeamComputers: this.minTeamComputers,
             randomSeqMultiplier: this.randomSeqMultiplier,
-            baronDamageGenerator: this.baronDamageGenerator,
+            baronDamageGeneratorName: this.baronDamageGeneratorName,
         }
     }
 }
@@ -483,7 +492,7 @@ export class LeagueKookGame {
 
         this.minTeamComputers = this.settings.minTeamComputers;
         this.randomSeqMultiplier = this.settings.randomSeqMultiplier;
-        this.baronDamageGenerator = this.settings.baronDamageGenerator;
+        this.baronDamageGenerator = BaronDamageGenerator[this.settings.baronDamageGeneratorName];
     }
 
     setInitialParams(setupArgs) {

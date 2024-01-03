@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.5.2/firebase-app.js";
 import { getDatabase, ref, child, get, set, onValue, remove, update, push } from "https://www.gstatic.com/firebasejs/10.5.2/firebase-database.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.5.2/firebase-auth.js"
-import { GAME_ROLES, GAME_STATES, GameUtils, PROFILE_IMAGES_CODES, RoomUtils, WAIT_LIST_STATES } from "./game.js";
+import { GAME_ROLES, GAME_STATES, GameUtils, LeagueKookGameSettings, PROFILE_IMAGES_CODES, RoomUtils, WAIT_LIST_STATES } from "./game.js";
 import { getRandomElementFromArray } from "./util.js";
 
 export class Fire {
@@ -45,6 +45,8 @@ export class Fire {
             LOBBY_USER_GAME_COMMS: "gameComms",
             GAME_COMMS_TO_USER: "toUser",
             GAME_COMMS_TO_ADMIN: "gameCommsToAdmin",
+
+            GAME_SETTINGS_TEAM_CODES: "teamCodes",
 
             QUESTION_BANK: "questionBank",
             QUESTION_BANK_OWNER: "owner",
@@ -262,7 +264,7 @@ export class Fire {
         let defaultLockedState = false;
         let defaultGameState = GAME_STATES.LOBBY;
         let defaultBlockList = {};
-        let defaultGameSettings = {};
+        let defaultGameSettings = new LeagueKookGameSettings();
 
         let roomId = RoomUtils.generateRoomCode();
         let roomPasscode = RoomUtils.generateRoomPasscode();
@@ -273,7 +275,7 @@ export class Fire {
         await this._setData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_GAME_STATE}`, defaultGameState);
         await this._setData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_BLOCK_LIST}`, defaultBlockList);
         await this._setData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_PASSCODE}`, roomPasscode);
-        await this._setData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_GAME_SETTINGS}`, defaultGameSettings);
+        await this._setData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_GAME_SETTINGS}`, defaultGameSettings.toFireFormat());
 
         await this.addToLobbyList(roomId, GAME_ROLES.ADMIN, true);
         
@@ -305,7 +307,30 @@ export class Fire {
 
     async getRoomGameState(roomId) {
         try {
-            return this._getData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_GAME_STATE}`);
+            return await this._getData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_GAME_STATE}`);
+        } catch (e) {
+            console.log(e);
+        }
+        return null;
+    }
+
+    async getGameSettings(roomId) {
+        console.log("Fetching game settings")
+        try {
+            let teamCodes = await this._getData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_GAME_SETTINGS}/${this.PATHS.GAME_SETTINGS_TEAM_CODES}`);
+            let otherSettings = await this._getData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_GAME_SETTINGS}`);
+            return {
+                teamCodes: teamCodes,
+                baronMaxHealth: otherSettings.baronMaxHealth,
+                baronCodeActiveDuration: otherSettings.baronCodeActiveDuration,
+                baronCodeMaxDamageAmount: otherSettings.baronCodeMaxDamageAmount,
+                baronCodeMinDamageAmount: otherSettings.baronCodeMinDamageAmount,
+                questionAnswerWindowDuration: otherSettings.questionAnswerWindowDuration,
+                questionWrongLockoutDuration: otherSettings.questionWrongLockoutDuration,
+                minTeamComputers: otherSettings.minTeamComputers,
+                randomSeqMultiplier: otherSettings.randomSeqMultiplier,
+                baronDamageGeneratorName: otherSettings.baronDamageGeneratorName
+            }
         } catch (e) {
             console.log(e);
         }

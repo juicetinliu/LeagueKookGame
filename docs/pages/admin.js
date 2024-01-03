@@ -64,8 +64,10 @@ export class AdminGamePage extends Page {
             this.adminBaronViewSwitchButtonWrapper.hide();
         }
 
+        let fireGameSettings = await this.app.fire.getGameSettings(this.roomId);
+        let gameSettings = LeagueKookGameSettings.createFromFire(fireGameSettings);
         // TODO: Settings page for game!
-        this.game = new LeagueKookGame(this.app, new LeagueKookGameSettings());
+        this.game = new LeagueKookGame(this.app, gameSettings);
         if(!await this.game.initialize(setupArgs)) {
             await this.closeGame();
             return;
