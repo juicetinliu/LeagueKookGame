@@ -46,8 +46,6 @@ export class Fire {
             GAME_COMMS_TO_USER: "toUser",
             GAME_COMMS_TO_ADMIN: "gameCommsToAdmin",
 
-            GAME_SETTINGS_TEAM_CODES: "teamCodes",
-
             QUESTION_BANK: "questionBank",
             QUESTION_BANK_OWNER: "owner",
             QUESTION_BANK_QUESTIONS: "questions",
@@ -317,20 +315,7 @@ export class Fire {
     async getGameSettings(roomId) {
         console.log("Fetching game settings")
         try {
-            let teamCodes = await this._getData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_GAME_SETTINGS}/${this.PATHS.GAME_SETTINGS_TEAM_CODES}`);
-            let otherSettings = await this._getData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_GAME_SETTINGS}`);
-            return {
-                teamCodes: teamCodes,
-                baronMaxHealth: otherSettings.baronMaxHealth,
-                baronCodeActiveDuration: otherSettings.baronCodeActiveDuration,
-                baronCodeMaxDamageAmount: otherSettings.baronCodeMaxDamageAmount,
-                baronCodeMinDamageAmount: otherSettings.baronCodeMinDamageAmount,
-                questionAnswerWindowDuration: otherSettings.questionAnswerWindowDuration,
-                questionWrongLockoutDuration: otherSettings.questionWrongLockoutDuration,
-                minTeamComputers: otherSettings.minTeamComputers,
-                randomSeqMultiplier: otherSettings.randomSeqMultiplier,
-                baronDamageGeneratorName: otherSettings.baronDamageGeneratorName
-            }
+            return await this._getData(`/${this.PATHS.ROOMS}/${roomId}/${this.PATHS.ROOM_GAME_SETTINGS}`);
         } catch (e) {
             console.log(e);
         }

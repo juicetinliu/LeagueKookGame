@@ -390,7 +390,8 @@ class MCQPlayer extends Player {
 
 export class LeagueKookGameSettings {
     constructor(
-        teamCodes = null,
+        redTeamCode = "4321",
+        blueTeamCode = "1234",
         baronMaxHealth = null,
         baronCodeActiveDuration = null,
         baronCodeMaxDamageAmount = null,
@@ -401,9 +402,9 @@ export class LeagueKookGameSettings {
         randomSeqMultiplier = null,
         baronDamageGeneratorName = null
         ) {
-        this.teamCodes = teamCodes ? teamCodes : {};
-        this.teamCodes[TEAM.BLUE] = "1234";
-        this.teamCodes[TEAM.RED] = "4321";
+        this.teamCodes = {};
+        this.teamCodes[TEAM.BLUE] = blueTeamCode;
+        this.teamCodes[TEAM.RED] = redTeamCode;
 
         this.baronMaxHealth = baronMaxHealth ? baronMaxHealth : GameConstants.baronStartingHealthAmount;
         this.baronCodeActiveDuration = baronCodeActiveDuration ? baronCodeActiveDuration : GameConstants.baronCodeActiveDuration;
@@ -428,7 +429,8 @@ export class LeagueKookGameSettings {
 
     static createFromFire(data) {
         return new LeagueKookGameSettings(
-            data.teamCodes,
+            data.redTeamCode,
+            data.blueTeamCode,
             data.baronMaxHealth,
             data.baronCodeActiveDuration,
             data.baronCodeMaxDamageAmount,
@@ -442,7 +444,8 @@ export class LeagueKookGameSettings {
 
     toFireFormat() {
         return {
-            teamCodes: this.teamCodes,
+            redTeamCode: this.teamCodes[TEAM.RED],
+            blueTeamCode: this.teamCodes[TEAM.BLUE],
             baronMaxHealth: this.baronMaxHealth,
             baronCodeActiveDuration: this.baronCodeActiveDuration,
             baronCodeMaxDamageAmount: this.baronCodeMaxDamageAmount,
